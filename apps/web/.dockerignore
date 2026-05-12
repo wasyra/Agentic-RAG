@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+*.md
+.env
+.env.*
+!.env.example
+coverage
+.vscode
+*.tsbuildinfo
+npm-debug.log*
+storage

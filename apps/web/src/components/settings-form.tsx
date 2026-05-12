@@ -2,7 +2,7 @@
 
 import { useEffect, useState, startTransition } from "react";
 import type { AiProviderId } from "@/lib/models";
-import { apiUrl } from "@/lib/api-url";
+import { apiUrl, ragProxyEnabled } from "@/lib/api-url";
 import {
   aiRequestHeaders,
   clearStoredCredentials,
@@ -53,15 +53,38 @@ export function SettingsForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
-
-  const refreshKeyFlag = () => setHasKey(Boolean(getStoredApiKey()));
+  const [proxySecretsOk, setProxySecretsOk] = useState(false);
+  const [cookieSession, setCookieSession] = useState(false);
 
   useEffect(() => {
-    startTransition(() => { refreshKeyFlag(); });
     startTransition(() => {
       void (async () => {
         try {
-          const res = await fetch(apiUrl("/api/settings"));
+          const sres = await fetch("/api/ai-session", { credentials: "include" });
+          const sj = (await sres.json()) as { proxySecretsOk?: boolean; cookieValid?: boolean };
+          setProxySecretsOk(Boolean(sj.proxySecretsOk));
+          setCookieSession(Boolean(sj.cookieValid));
+        } catch {
+          setProxySecretsOk(false);
+          setCookieSession(false);
+        }
+      })();
+    });
+  }, []);
+
+  useEffect(() => {
+    if (ragProxyEnabled()) {
+      setHasKey(cookieSession);
+    } else {
+      setHasKey(Boolean(getStoredApiKey()));
+    }
+  }, [cookieSession]);
+
+  useEffect(() => {
+    startTransition(() => {
+      void (async () => {
+        try {
+          const res = await fetch(apiUrl("/api/settings"), { credentials: "include" });
           const j = (await res.json()) as SettingsPayload;
           setData(j);
           const fromLs = getStoredApiKey() ? getStoredAiProvider() : j.chatProvider;
@@ -86,18 +109,51 @@ export function SettingsForm() {
     setSaving(true); setMessage(null);
     try {
       setStoredAiProvider(chatProvider);
-      if (apiKeyInput.trim()) setStoredApiKey(apiKeyInput);
-      refreshKeyFlag();
+      const useProxy = ragProxyEnabled();
+
+      if (useProxy) {
+        if (!proxySecretsOk) {
+          setMessage({
+            text: "Define AI_SESSION_SECRET (mín. 16 caracteres) en el servidor Next para guardar la clave de forma segura.",
+            ok: false,
+          });
+          return;
+        }
+        if (apiKeyInput.trim()) {
+          const sres = await fetch("/api/ai-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ provider: chatProvider, apiKey: apiKeyInput.trim() }),
+          });
+          const sj = (await sres.json()) as { error?: string };
+          if (!sres.ok) {
+            setMessage({ text: sj.error ?? "No se pudo crear la sesión segura.", ok: false });
+            return;
+          }
+          clearStoredCredentials();
+          setCookieSession(true);
+        }
+      } else if (apiKeyInput.trim()) {
+        setStoredApiKey(apiKeyInput);
+      }
+
       const res = await fetch(apiUrl("/api/settings"), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...aiRequestHeaders() },
+        credentials: "include",
         body: JSON.stringify({ chatProvider, chatModel }),
       });
       const j = (await res.json()) as SettingsPayload & { error?: string };
       if (!res.ok) { setMessage({ text: j.error ?? "Error al guardar", ok: false }); return; }
       setData(j); setChatProvider(j.chatProvider); setStoredAiProvider(j.chatProvider);
       setChatModel(j.chatModel); setApiKeyInput("");
-      setMessage({ text: "Guardado correctamente. La clave vive en localStorage y se envía en cada petición.", ok: true });
+      setMessage({
+        text: useProxy
+          ? "Guardado. La API key queda en cookie httpOnly en el servidor Next; no está en localStorage."
+          : "Guardado. La clave está en localStorage y se envía en cabeceras hacia el API.",
+        ok: true,
+      });
     } catch {
       setMessage({ text: "Error de red al guardar.", ok: false });
     } finally { setSaving(false); }
@@ -107,7 +163,7 @@ export function SettingsForm() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex items-center gap-2 text-sm text-zinc-500">
-          <span className="size-4 animate-spin rounded-full border-2 border-zinc-700 border-t-indigo-400" />
+          <span className="size-4 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-400" />
           {loading ? "Cargando configuración…" : "Sin datos."}
         </div>
       </div>
@@ -120,8 +176,8 @@ export function SettingsForm() {
   return (
     <div className="space-y-5">
       {/* Provider selector */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-        <p className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Proveedor de IA</p>
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-inner shadow-black/20 ring-1 ring-white/[0.03]">
+        <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Proveedor de IA</p>
         <div className="grid grid-cols-2 gap-2">
           {data.aiProviders.map((p) => {
             const meta = PROVIDER_META[p.id] ?? { color: "text-zinc-400 bg-zinc-400/10 border-zinc-400/20", icon: null };
@@ -146,8 +202,8 @@ export function SettingsForm() {
       </div>
 
       {/* Model selector */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Modelo de chat</p>
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-inner shadow-black/20 ring-1 ring-white/[0.03]">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Modelo de chat</p>
         <div className="space-y-2">
           {modelOpts.map((m) => {
             const active = chatModel === m.id;
@@ -158,13 +214,13 @@ export function SettingsForm() {
                 onClick={() => setChatModel(m.id)}
                 className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm transition-all duration-200 ${
                   active
-                    ? "border-indigo-500/40 bg-indigo-500/10 text-indigo-200 shadow-lg shadow-indigo-500/5"
+                    ? "border-violet-500/40 bg-gradient-to-r from-violet-500/15 to-cyan-500/5 text-violet-100 shadow-lg shadow-violet-950/20 ring-1 ring-violet-400/15"
                     : "border-white/[0.06] bg-transparent text-zinc-400 hover:border-white/[0.12] hover:text-zinc-300"
                 }`}
               >
                 <span className="font-medium">{m.label}</span>
                 {active && (
-                  <span className="flex size-4 items-center justify-center rounded-full bg-indigo-500 text-white">
+                  <span className="flex size-4 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-md shadow-violet-900/40">
                     <svg viewBox="0 0 24 24" fill="none" className="size-2.5" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                     </svg>
@@ -177,9 +233,9 @@ export function SettingsForm() {
       </div>
 
       {/* API Key */}
-      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-inner shadow-black/20 ring-1 ring-white/[0.03]">
         <div className="mb-4 flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">API Key</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">API Key</p>
           <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium border ${
             hasKey
               ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
@@ -193,23 +249,43 @@ export function SettingsForm() {
         <input
           type="password"
           autoComplete="off"
-          className="w-full rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm text-zinc-200 outline-none transition-colors placeholder:text-zinc-600 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+          className="w-full rounded-xl border border-white/[0.08] bg-zinc-900/40 px-4 py-3 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500/45 focus:ring-2 focus:ring-violet-500/20"
           placeholder={hasKey ? "•••••••• dejar vacío para no cambiar" : "Pegar clave de OpenAI o Google AI Studio"}
           value={apiKeyInput}
           onChange={(e) => setApiKeyInput(e.target.value)}
         />
 
         <div className="mt-3 rounded-xl border border-white/[0.04] bg-white/[0.01] px-3 py-2.5 text-[11px] leading-relaxed text-zinc-600">
-          La clave se guarda en <span className="text-zinc-400">localStorage</span> del navegador y se envía en los headers{" "}
-          <code className="rounded bg-white/[0.06] px-1 text-indigo-400">X-API-Key</code> y{" "}
-          <code className="rounded bg-white/[0.06] px-1 text-indigo-400">X-AI-Provider</code> de cada petición.
+          {ragProxyEnabled() ? (
+            <>
+              Con el proxy activo, la clave se guarda en una{" "}
+              <span className="text-zinc-400">cookie httpOnly</span> cifrada en el servidor Next (requiere{" "}
+              <code className="rounded bg-white/[0.06] px-1 text-violet-300">AI_SESSION_SECRET</code>
+              ). El cliente no puede leerla desde JavaScript.
+            </>
+          ) : (
+            <>
+              La clave se guarda en <span className="text-zinc-400">localStorage</span> del navegador y se envía en los headers{" "}
+              <code className="rounded bg-white/[0.06] px-1 text-violet-300">X-API-Key</code> y{" "}
+              <code className="rounded bg-white/[0.06] px-1 text-violet-300">X-AI-Provider</code> de cada petición.
+            </>
+          )}
         </div>
 
         {hasKey && (
           <button
             type="button"
             className="mt-3 flex items-center gap-1.5 text-xs text-zinc-600 transition-colors hover:text-rose-400"
-            onClick={() => { clearStoredCredentials(); setApiKeyInput(""); refreshKeyFlag(); }}
+            onClick={() => {
+              if (ragProxyEnabled()) {
+                void fetch("/api/ai-session", { method: "DELETE", credentials: "include" }).then(() =>
+                  setCookieSession(false),
+                );
+              }
+              clearStoredCredentials();
+              setApiKeyInput("");
+              setHasKey(false);
+            }}
           >
             <svg viewBox="0 0 24 24" fill="none" className="size-3.5" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -222,7 +298,7 @@ export function SettingsForm() {
       {/* Save button */}
       <button
         type="button"
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 py-3 text-sm font-semibold text-white shadow-xl shadow-indigo-500/20 transition-all hover:from-indigo-500 hover:to-violet-600 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-violet-700 py-3 text-sm font-semibold text-white shadow-xl shadow-violet-900/35 ring-1 ring-white/10 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
         disabled={saving}
         onClick={() => void save()}
       >

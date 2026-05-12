@@ -13,16 +13,18 @@ Monorepo según [PLAN.md](./PLAN.md): **Next.js** (solo UI) + **FastAPI** (backe
 
 En la **raíz** del repositorio.
 
-### 1. Levantar Postgres, API y web
+### 1. Levantar Postgres, Redis, API, worker y web
 
 ```powershell
 docker compose up -d --build
 ```
 
 - **Postgres** (pgvector): puerto `5432`.
+- **Redis**: cola interna para indexación.
 - **API** (FastAPI / Uvicorn): [http://localhost:8000](http://localhost:8000) — salud: [http://localhost:8000/api/health](http://localhost:8000/api/health).
+- **Worker**: consume la cola Redis y ejecuta la indexación.
 - **Web** (Next.js producción): [http://localhost:3000](http://localhost:3000).  
-  El build de la imagen incluye `NEXT_PUBLIC_API_URL=http://localhost:8000` para que el navegador llame al API en el host.
+  Con proxy activo el navegador usa rutas `/api/rag-proxy/...` hacia el mismo host 3000; el servidor Next reenvía al contenedor `api`.
 
 Los **subidos** y `storage/app-settings.json` persisten en el volumen `rag_web_storage`, montado en **`/app/storage`** tanto en `web` como en `api` (misma carpeta lógica).
 
@@ -35,19 +37,32 @@ docker compose --profile tools run --rm migrate
 docker compose --profile tools run --rm seed
 ```
 
-`seed` crea el usuario `dev@local.rag` y la base de conocimiento **Personal**. Si omites `migrate`, la app fallará al consultar tablas que aún no existen.
+`seed` crea el usuario `dev@local.rag` y la base de conocimiento **Personal**. Si omites `migrate`, la app fallará al consultar tablas que aún no existen (p. ej. error 500: `relation "knowledge_bases" does not exist`).
 
-### 3. IA (claves en el navegador)
+**Desde la raíz del repo** también puedes usar: `npm run db:migrate`, `npm run db:seed` o `npm run db:setup` (equivalente a los dos comandos de arriba).
 
-En [http://localhost:3000/settings](http://localhost:3000/settings): proveedor **OpenAI** o **Google**, una API key y modelos. Las claves van en **localStorage** y se envían con `X-AI-Provider` y `X-API-Key` al API.
+### 3. IA (claves y proxy)
+
+En Docker Compose la web se construye con **`NEXT_PUBLIC_USE_RAG_PROXY=true`**: el navegador llama a **Next** (`/api/rag-proxy/...`) y la API key se guarda con **cookie httpOnly** cifrada (variable **`AI_SESSION_SECRET`** en el servicio `web`, ya definida de ejemplo en `docker-compose.yml`; cámbiala en producción).
+
+En [http://localhost:3000/settings](http://localhost:3000/settings): proveedor, modelo y API key. La clave no queda en `localStorage`.
+
+**Sin proxy (desarrollo híbrido):** en `apps/web/.env` pon `NEXT_PUBLIC_USE_RAG_PROXY=false` y las claves pueden seguir en `localStorage` como antes.
+
+**Solo servidor:** en el API puedes definir `OPENAI_API_KEY` o `GOOGLE_API_KEY` en el entorno; el backend las usa si no llega `X-API-Key`.
+
+### Indexación en cola (Redis + worker)
+
+Los servicios **`redis`** y **`worker`** encolan la indexación de documentos. Si Redis no está disponible, la API sigue indexando con **BackgroundTasks** como antes.
 
 ### Comandos útiles
 
 | Comando | Descripción |
 |--------|-------------|
-| `docker compose up -d` | Arranca `db` + `api` + `web` |
+| `docker compose up -d` | Arranca `db`, `redis`, `api`, `worker` y `web` |
 | `docker compose logs -f api` | Logs del backend FastAPI |
 | `docker compose logs -f web` | Logs del front Next.js |
+| `docker compose logs -f worker` | Logs del worker de indexación (Redis) |
 | `docker compose down` | Para contenedores (los volúmenes de datos se conservan) |
 
 ---
@@ -67,7 +82,7 @@ cd apps\web
 copy .env.example .env
 ```
 
-En `.env`: `DATABASE_URL` con **localhost**; **`NEXT_PUBLIC_API_URL=http://127.0.0.1:8000`** (obligatorio para que el navegador apunte al FastAPI).
+En `.env`: `DATABASE_URL` con **localhost**; **`NEXT_PUBLIC_API_URL=http://127.0.0.1:8000`**; **`API_INTERNAL_URL=http://127.0.0.1:8000`** (para el proxy de Next). Para cookie segura de IA: `NEXT_PUBLIC_USE_RAG_PROXY=true` y **`AI_SESSION_SECRET`** (mín. 16 caracteres). Si usas solo `localStorage`, deja `NEXT_PUBLIC_USE_RAG_PROXY=false`.
 
 ### 3. API Python (`apps/api`)
 

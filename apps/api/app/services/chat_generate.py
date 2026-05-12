@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 import google.generativeai as genai
 from openai import AsyncOpenAI
 
@@ -55,3 +57,43 @@ async def generate_chat_reply(
         return (result.text or "").strip() or "No se generó texto de respuesta."
 
     return await run_google_sync_with_backoff(_run_google, call_type="generate", attempts=4)
+
+
+async def stream_chat_reply_tokens(
+    *,
+    provider: str,
+    model: str,
+    system: str,
+    history: list[dict[str, str]],
+    api_key: str,
+) -> AsyncIterator[str]:
+    """
+    Tokens de respuesta para SSE. OpenAI usa streaming real; Google genera
+    completo y reenvía en trozos pequeños (la API sync no encaja bien en async).
+    """
+    if provider == "openai":
+        client = AsyncOpenAI(api_key=api_key)
+        messages = [{"role": "system", "content": system}, *history]
+        stream = await client.chat.completions.create(
+            model=model,
+            temperature=0.15,
+            max_tokens=1800,
+            messages=messages,
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content or ""
+            if delta:
+                yield delta
+        return
+
+    full = await generate_chat_reply(
+        provider=provider,
+        model=model,
+        system=system,
+        history=history,
+        api_key=api_key,
+    )
+    step = 64
+    for i in range(0, len(full), step):
+        yield full[i : i + step]

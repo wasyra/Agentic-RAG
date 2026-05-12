@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import close_pool, init_pool
-from app.routers import chat, documents, health, knowledge_bases, settings_endpoints
+from app.routers import chat, conversations, documents, health, knowledge_bases, settings_endpoints
 
 
 @asynccontextmanager
@@ -29,4 +29,5 @@ app.include_router(health.router, prefix="/api")
 app.include_router(knowledge_bases.router, prefix="/api")
 app.include_router(settings_endpoints.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
+app.include_router(conversations.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")

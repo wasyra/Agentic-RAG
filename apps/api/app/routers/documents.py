@@ -17,6 +17,7 @@ from fastapi import (
 from app.db import get_pool
 from app.routers.deps import AiCredsDep
 from app.services.index_document import index_document
+from app.services.index_queue import enqueue_index_job
 from app.services.storage_path import relative_upload_path, resolve_stored_upload_path
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,11 @@ async def upload_document(
 
     doc_id = str(row["id"])
     creds_dict = {"provider": creds["provider"], "apiKey": creds["apiKey"]} if creds else None
-    background_tasks.add_task(_run_index_safe, doc_id, creds_dict)
+    enqueued = False
+    if creds_dict:
+        enqueued = await enqueue_index_job(doc_id, creds_dict)
+    if not enqueued:
+        background_tasks.add_task(_run_index_safe, doc_id, creds_dict)
 
     return {
         "document": {
@@ -167,5 +172,9 @@ async def reindex_document(
     if not doc_id or not UUID_RE.match(doc_id):
         raise HTTPException(status_code=400, detail="Id de documento inválido")
     creds_dict = {"provider": creds["provider"], "apiKey": creds["apiKey"]} if creds else None
-    background_tasks.add_task(_run_index_safe, doc_id, creds_dict)
+    enqueued = False
+    if creds_dict:
+        enqueued = await enqueue_index_job(doc_id, creds_dict)
+    if not enqueued:
+        background_tasks.add_task(_run_index_safe, doc_id, creds_dict)
     return {"ok": True, "message": "Indexación en segundo plano"}

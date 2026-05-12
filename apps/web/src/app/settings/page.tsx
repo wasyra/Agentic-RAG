@@ -3,16 +3,16 @@ import { SettingsForm } from "@/components/settings-form";
 
 export default function SettingsPage() {
   return (
-    <div className="min-h-dvh bg-[#08080f] px-4 py-10 text-zinc-100">
-      {/* Ambient glow */}
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-72 w-96 -translate-y-1/2 rounded-full bg-indigo-600/10 blur-3xl" />
+    <div className="relative min-h-dvh px-4 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-zinc-100 sm:px-6 sm:py-16">
+      <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden>
+        <div className="absolute left-1/2 top-0 h-[28rem] w-[36rem] -translate-x-1/2 -translate-y-1/3 rounded-full bg-violet-600/[0.12] blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-80 w-80 translate-x-1/4 translate-y-1/4 rounded-full bg-cyan-500/[0.08] blur-3xl" />
       </div>
 
-      <div className="mx-auto max-w-lg">
+      <div className="relative mx-auto max-w-lg">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-indigo-400 mb-8"
+          className="mb-10 inline-flex items-center gap-2 text-xs font-medium text-zinc-500 transition-colors hover:text-violet-300"
         >
           <svg viewBox="0 0 24 24" fill="none" className="size-3.5" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
@@ -20,15 +20,21 @@ export default function SettingsPage() {
           Volver al chat
         </Link>
 
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight text-white">Configuración de IA</h1>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-            Elige <strong className="text-zinc-300">OpenAI o Google</strong>: una sola API key para chat y embeddings.
-            Las credenciales quedan en el navegador; el modelo se persiste en <code className="rounded bg-white/[0.06] px-1 py-0.5 text-xs text-indigo-300">app-settings.json</code> vía FastAPI.
+        <div className="mb-10">
+          <h1 className="text-2xl font-semibold tracking-tight text-gradient-brand sm:text-3xl">Configuración de IA</h1>
+          <p className="mt-3 text-sm leading-relaxed text-zinc-500">
+            Elige <strong className="font-medium text-zinc-300">OpenAI o Google</strong>: una sola API key para chat y embeddings.
+            Con el proxy activo la clave va en cookie httpOnly; si no, en localStorage. El modelo se guarda en{" "}
+            <code className="rounded-md border border-white/[0.08] bg-white/[0.05] px-1.5 py-0.5 text-xs text-violet-300">
+              app-settings.json
+            </code>{" "}
+            vía FastAPI.
           </p>
         </div>
 
-        <SettingsForm />
+        <div className="rounded-3xl border border-white/[0.08] bg-zinc-950/50 p-6 shadow-2xl shadow-violet-950/15 ring-1 ring-white/[0.04] backdrop-blur-xl sm:p-8">
+          <SettingsForm />
+        </div>
       </div>
     </div>
   );

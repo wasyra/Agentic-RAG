@@ -14,6 +14,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # URL pública del servicio FastAPI (navegador → mismo host que abre la web).
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# true = el cliente usa `/api/rag-proxy` y la API key va en cookie httpOnly (ver README).
+ARG NEXT_PUBLIC_USE_RAG_PROXY=false
+ENV NEXT_PUBLIC_USE_RAG_PROXY=$NEXT_PUBLIC_USE_RAG_PROXY
 # Solo para el análisis de rutas en build; en runtime Compose inyecta DATABASE_URL real.
 ARG DATABASE_URL=postgresql://rag:rag@127.0.0.1:5432/rag_kb
 ENV DATABASE_URL=$DATABASE_URL

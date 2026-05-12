@@ -10,11 +10,38 @@ services:
       DATABASE_URL: postgresql://rag:rag@db:5432/rag_kb
       STORAGE_ROOT: /app/storage
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - rag_web_storage:/app/storage
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: rag-kb-redis
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: rag-kb-worker
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql://rag:rag@db:5432/rag_kb
+      STORAGE_ROOT: /app/storage
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - rag_web_storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     restart: unless-stopped
 
   db:
@@ -41,11 +68,14 @@ services:
       target: runner
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_USE_RAG_PROXY: "true"
     container_name: rag-kb-web
     ports:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://rag:rag@db:5432/rag_kb
+      API_INTERNAL_URL: http://api:8000
+      AI_SESSION_SECRET: dev_change_me_min_16_chars_please
     depends_on:
       db:
         condition: service_healthy

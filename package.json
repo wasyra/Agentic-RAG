@@ -1,0 +1,10 @@
+{
+  "name": "agentic-rag",
+  "private": true,
+  "description": "Scripts de conveniencia en la raíz (Docker Compose). La app web está en apps/web.",
+  "scripts": {
+    "db:migrate": "docker compose --profile tools run --rm migrate",
+    "db:seed": "docker compose --profile tools run --rm seed",
+    "db:setup": "npm run db:migrate && npm run db:seed"
+  }
+}

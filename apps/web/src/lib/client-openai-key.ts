@@ -1,9 +1,11 @@
 /**
  * Un solo proveedor (openai | google) y una sola API key en localStorage.
  * Cabeceras: `X-AI-Provider`, `X-API-Key`.
+ * Con `NEXT_PUBLIC_USE_RAG_PROXY=true` la clave va en cookie httpOnly (Next) y no se envían cabeceras desde el cliente.
  */
 import type { AiProviderId } from "@/lib/models";
 import { DEFAULT_AI_PROVIDER } from "@/lib/models";
+import { ragProxyEnabled } from "@/lib/api-url";
 
 const LS_PROVIDER = "rag_kb_ai_provider";
 const LS_API_KEY = "rag_kb_api_key";
@@ -39,6 +41,7 @@ export function clearStoredCredentials() {
 }
 
 export function aiRequestHeaders(): Record<string, string> {
+  if (ragProxyEnabled()) return {};
   const key = getStoredApiKey();
   const provider = getStoredAiProvider();
   if (!key) return {};

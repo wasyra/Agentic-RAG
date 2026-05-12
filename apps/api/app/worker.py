@@ -1,23 +1,14 @@
-"""
-Worker de indexación: consume la cola Redis `rag:index:queue` (mismo contrato que index_queue.py).
-
-Ejecutar:  python -m app.worker
-Requiere: REDIS_URL, DATABASE_URL, STORAGE_ROOT (y mismos valores que el API).
-"""
-
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import os
 import signal
 
 from app.db import close_pool, init_pool
 from app.services.index_document import index_document
-from app.services.index_queue import QUEUE_KEY, redis_url
+from app.services.index_queue import INDEX_CRED_KEY_PREFIX, QUEUE_KEY, redis_url
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
 
 _stop = asyncio.Event()
@@ -54,10 +45,23 @@ async def _run() -> None:
         try:
             job = json.loads(raw)
             doc_id = str(job["document_id"])
-            creds = {
-                "provider": str(job.get("provider") or "openai"),
-                "apiKey": str(job["api_key"]),
-            }
+            creds: dict[str, str] | None = None
+            key_ref = job.get("key_ref")
+            if key_ref:
+                ref = str(key_ref).strip()
+                if not ref:
+                    raise ValueError("key_ref vacío")
+                cred_raw = await client.getdel(INDEX_CRED_KEY_PREFIX + ref)
+                if not cred_raw:
+                    raise ValueError(
+                        "Credencial temporal de cola ausente o expirada (TTL). "
+                        "Vuelve a indexar desde la API."
+                    )
+                parsed = json.loads(cred_raw)
+                creds = {
+                    "provider": str(parsed.get("provider") or "openai"),
+                    "apiKey": str(parsed["apiKey"]),
+                }
             logger.info("Indexando documento %s", doc_id)
             await index_document(doc_id, creds)
         except Exception:
@@ -75,4 +79,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     main()

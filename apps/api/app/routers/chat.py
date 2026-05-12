@@ -36,6 +36,29 @@ UUID_RE = re.compile(
 MAX_COSINE_DISTANCE = 0.62
 RETRIEVAL_TOP_K = 8
 
+_BRACKET_NUM_RE = re.compile(r"\[\s*(\d+)\s*\]")
+
+
+def citation_indices_from_answer(text: str) -> set[int]:
+    out: set[int] = set()
+    for m in _BRACKET_NUM_RE.finditer(text):
+        n = int(m.group(1))
+        if n > 0:
+            out.add(n)
+    return out
+
+
+def citations_for_reply(used: list[RetrievedChunk], reply: str) -> list[dict[str, Any]]:
+    """
+    Si la respuesta contiene [n], solo se exponen citas cuyo índice coincide con el contexto.
+    Si no hay [n], se mantienen todas las del contexto usado (comportamiento previo).
+    """
+    idxs = citation_indices_from_answer(reply)
+    base = _citations_from_used(used)
+    if not idxs:
+        return base
+    return [c for i, c in enumerate(base, start=1) if i in idxs]
+
 
 class ChatMessageIn(BaseModel):
     role: str
@@ -546,7 +569,7 @@ async def chat(
             status_code=status,
         )
 
-    citations = _citations_from_used(used)
+    citations = citations_for_reply(used, reply)
     async with pool.acquire() as conn:
         async with conn.transaction():
             await _insert_assistant_message(conn, conversation_id, reply, citations)
@@ -747,7 +770,6 @@ async def _chat_sse_events(
     history: list[dict[str, str]] = [
         {"role": m.role, "content": m.content[:12000]} for m in hist_raw
     ]
-    citations = _citations_from_used(used)
 
     t_gen0 = time.perf_counter()
     models_to_try = (
@@ -842,6 +864,8 @@ async def _chat_sse_events(
         )
         yield _sse({"type": "error", "httpStatus": status, "message": message})
         return
+
+    citations = citations_for_reply(used, reply)
 
     async with pool.acquire() as conn:
         async with conn.transaction():

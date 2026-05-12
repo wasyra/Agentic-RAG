@@ -75,7 +75,7 @@ services:
     environment:
       DATABASE_URL: postgresql://rag:rag@db:5432/rag_kb
       API_INTERNAL_URL: http://api:8000
-      AI_SESSION_SECRET: dev_change_me_min_16_chars_please
+      AI_SESSION_SECRET: local_docker_only_not_for_prod_use_min32chars_9f3a2b1c
     depends_on:
       db:
         condition: service_healthy

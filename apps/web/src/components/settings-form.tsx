@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, startTransition } from "react";
+import { useEffect, useMemo, useState, startTransition } from "react";
 import type { AiProviderId } from "@/lib/models";
 import { apiUrl, ragProxyEnabled } from "@/lib/api-url";
 import {
@@ -49,7 +49,7 @@ export function SettingsForm() {
   const [chatProvider, setChatProvider] = useState<AiProviderId>("openai");
   const [chatModel, setChatModel] = useState("");
   const [apiKeyInput, setApiKeyInput] = useState("");
-  const [hasKey, setHasKey] = useState(false);
+  const [lsKeyNonce, setLsKeyNonce] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
@@ -72,13 +72,11 @@ export function SettingsForm() {
     });
   }, []);
 
-  useEffect(() => {
-    if (ragProxyEnabled()) {
-      setHasKey(cookieSession);
-    } else {
-      setHasKey(Boolean(getStoredApiKey()));
-    }
-  }, [cookieSession]);
+  const hasKey = useMemo(() => {
+    void lsKeyNonce;
+    if (ragProxyEnabled()) return cookieSession;
+    return Boolean(getStoredApiKey());
+  }, [cookieSession, lsKeyNonce]);
 
   useEffect(() => {
     startTransition(() => {
@@ -136,6 +134,7 @@ export function SettingsForm() {
         }
       } else if (apiKeyInput.trim()) {
         setStoredApiKey(apiKeyInput);
+        setLsKeyNonce((n) => n + 1);
       }
 
       const res = await fetch(apiUrl("/api/settings"), {
@@ -171,7 +170,6 @@ export function SettingsForm() {
   }
 
   const modelOpts = modelsForProvider(chatProvider, data);
-  const pMeta = PROVIDER_META[chatProvider];
 
   return (
     <div className="space-y-5">
@@ -284,7 +282,7 @@ export function SettingsForm() {
               }
               clearStoredCredentials();
               setApiKeyInput("");
-              setHasKey(false);
+              setLsKeyNonce((n) => n + 1);
             }}
           >
             <svg viewBox="0 0 24 24" fill="none" className="size-3.5" stroke="currentColor" strokeWidth={1.5}>

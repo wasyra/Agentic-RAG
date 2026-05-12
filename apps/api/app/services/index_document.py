@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from app.db import get_pool
-from app.services.app_settings import read_app_settings
+from app.routers.deps import resolve_embedding_creds_async
 from app.services.embeddings import embed_texts_unified
 from app.services.extract_document import extract_document_chunks
-from app.services.models_const import resolve_ai_provider
 from app.services.storage_path import resolve_stored_upload_path
 
 
@@ -40,17 +39,9 @@ async def index_document(document_id: str, creds: dict[str, Any] | None) -> None
         )
 
     try:
-        if not (creds and str(creds.get("apiKey") or "").strip()):
-            raise ValueError(
-                "Falta la API key en la petición. Configúrala en Ajustes (navegador) "
-                "y vuelve a subir o pulsa Reindexar."
-            )
-
-        settings = await read_app_settings()
-        provider = str(creds.get("provider") or "").strip() or resolve_ai_provider(
-            settings
-        )
-        api_key = str(creds["apiKey"]).strip()
+        resolved = await resolve_embedding_creds_async(creds)
+        provider = resolved["provider"]
+        api_key = resolved["apiKey"]
 
         abs_path = str(resolve_stored_upload_path(row["storage_path"]))
         drafts = await extract_document_chunks(

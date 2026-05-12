@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { getProductionAiSessionSecretError } from "@/server/ai-session-guard";
 import { openAiSession, sealAiSession } from "@/server/ai-session-crypto";
 
 const COOKIE = "rag_ai_session";
@@ -30,6 +31,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const prodSecretErr = getProductionAiSessionSecretError();
+  if (prodSecretErr) {
+    return NextResponse.json({ error: prodSecretErr }, { status: 503 });
+  }
   const secret = process.env.AI_SESSION_SECRET?.trim();
   if (!secret || secret.length < 16) {
     return NextResponse.json(

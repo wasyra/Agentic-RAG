@@ -2,6 +2,36 @@
 
 Monorepo según [PLAN.md](./PLAN.md): **Next.js** (solo UI) + **FastAPI** (backend `/api/...`) + **PostgreSQL** con **pgvector**, chat RAG con citas.
 
+## Interfaz (capturas)
+
+Vistas principales de la web (`apps/web`): chat con biblioteca en la barra lateral, variante en pantalla estrecha y pantalla de ajustes de IA.
+
+### Escritorio: chat y biblioteca
+
+Conversaciones, selector de base de conocimiento, subida de archivos (PDF / TXT / MD) y listado con estado de indexación; a la derecha, el área del asistente.
+
+![Vista escritorio: chat y biblioteca lateral](docs/screenshots/vista-chat-escritorio.png)
+
+### Móvil: área de chat
+
+En viewport reducido, la biblioteca se abre con el menú (icono arriba a la izquierda). La captura muestra el estado inicial con sugerencias de preguntas.
+
+![Vista móvil: chat principal](docs/screenshots/vista-chat-movil.png)
+
+### Configuración de IA (`/settings`)
+
+Proveedor (OpenAI o Google), modelo y credenciales; enlazado desde el botón **Ajustes IA** en la cabecera del chat.
+
+![Vista configuración de IA](docs/screenshots/vista-configuracion-ia.png)
+
+Las capturas del repo se toman contra la **web del contenedor Docker** (imagen de producción), no contra `npm run dev`. Con el stack en marcha, desde la raíz del repo:
+
+```powershell
+.\scripts\capture-readme-screenshots.ps1
+```
+
+El script usa `http://127.0.0.1:<puerto>` donde `<puerto>` es `WEB_PUBLISH_PORT` o `3000`. Si Next en desarrollo ocupa el 3000, levanta solo la web publicada en otro puerto (ver Opción A) y ejecuta el script con el mismo puerto en el entorno.
+
 ## Requisitos
 
 - **Solo Docker**: Docker Desktop (o Docker Engine + Compose v2).
@@ -23,8 +53,9 @@ docker compose up -d --build
 - **Redis**: cola interna para indexación.
 - **API** (FastAPI / Uvicorn): [http://localhost:8000](http://localhost:8000) — salud: [http://localhost:8000/api/health](http://localhost:8000/api/health).
 - **Worker**: consume la cola Redis y ejecuta la indexación.
-- **Web** (Next.js producción): [http://localhost:3000](http://localhost:3000).  
-  Con proxy activo el navegador usa rutas `/api/rag-proxy/...` hacia el mismo host 3000; el servidor Next reenvía al contenedor `api`.
+- **Web** (Next.js producción): por defecto [http://localhost:3000](http://localhost:3000) (mapeo `${WEB_PUBLISH_PORT:-3000}:3000` en `docker-compose.yml`).  
+  Con proxy activo el navegador usa rutas `/api/rag-proxy/...` hacia el mismo host y puerto; el servidor Next reenvía al contenedor `api`.  
+  Si el **3000** del host está ocupado (p. ej. `npm run dev`), antes de `docker compose up` define `$env:WEB_PUBLISH_PORT = "3001"` y entra por `http://localhost:3001`. La API admite CORS en localhost **3000** y **3001** sin configuración extra.
 
 Los **subidos** y `storage/app-settings.json` persisten en el volumen `rag_web_storage`, montado en **`/app/storage`** tanto en `web` como en `api` (misma carpeta lógica).
 
@@ -148,4 +179,3 @@ RAG-Documents/
     ├── api/               # FastAPI + Dockerfile
     └── web/               # Next.js + Dockerfile
 ```
-# Agentic-RAG

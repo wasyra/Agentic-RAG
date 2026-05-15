@@ -9,7 +9,8 @@ services:
     environment:
       DATABASE_URL: postgresql://rag:rag@db:5432/rag_kb
       STORAGE_ROOT: /app/storage
-      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      # Incluye 3001 por si publicas `web` con WEB_PUBLISH_PORT=3001 (p. ej. Next en dev en 3000).
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001}
       REDIS_URL: redis://redis:6379/0
     volumes:
       - rag_web_storage:/app/storage
@@ -71,7 +72,7 @@ services:
         NEXT_PUBLIC_USE_RAG_PROXY: "true"
     container_name: rag-kb-web
     ports:
-      - "3000:3000"
+      - "${WEB_PUBLISH_PORT:-3000}:3000"
     environment:
       DATABASE_URL: postgresql://rag:rag@db:5432/rag_kb
       API_INTERNAL_URL: http://api:8000

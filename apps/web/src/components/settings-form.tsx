@@ -11,6 +11,30 @@ import {
   setStoredAiProvider,
   setStoredApiKey,
 } from "@/lib/client-openai-key";
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  Code,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Spinner,
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@vetaui/atoms";
+import { FormField } from "@vetaui/molecules";
+import { CheckCircle2, Trash2 } from "lucide-react";
 
 type ModelOpt = { id: string; label: string };
 type SettingsPayload = {
@@ -25,23 +49,17 @@ function modelsForProvider(p: AiProviderId, data: SettingsPayload): readonly Mod
   return p === "google" ? data.googleChatModels : data.openaiChatModels;
 }
 
-const PROVIDER_META: Record<string, { color: string; icon: React.ReactNode }> = {
-  openai: {
-    color: "text-emerald-300 bg-emerald-400/10 border-emerald-400/20",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
-        <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073ZM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494ZM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646ZM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872Zm16.597 3.855-5.833-3.387 2.019-1.168a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.411-.663Zm2.01-3.023-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66Zm-12.64 4.135-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681Zm1.097-2.365 2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5Z" />
-      </svg>
-    ),
-  },
-  google: {
-    color: "text-blue-300 bg-blue-400/10 border-blue-400/20",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
-        <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
-      </svg>
-    ),
-  },
+const PROVIDER_ICON: Record<string, React.ReactNode> = {
+  openai: (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="size-4 shrink-0" aria-hidden>
+      <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073ZM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494ZM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646ZM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872Zm16.597 3.855-5.833-3.387 2.019-1.168a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.411-.663Zm2.01-3.023-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66Zm-12.64 4.135-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681Zm1.097-2.365 2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5Z" />
+    </svg>
+  ),
+  google: (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="size-4 shrink-0" aria-hidden>
+      <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+    </svg>
+  ),
 };
 
 export function SettingsForm() {
@@ -90,7 +108,9 @@ export function SettingsForm() {
           setChatModel(j.chatModel);
         } catch {
           setMessage({ text: "No se pudo cargar la configuración.", ok: false });
-        } finally { setLoading(false); }
+        } finally {
+          setLoading(false);
+        }
       })();
     });
   }, []);
@@ -99,12 +119,15 @@ export function SettingsForm() {
     if (!data) return;
     const list = modelsForProvider(chatProvider, data);
     if (!list.some((m) => m.id === chatModel)) {
-      startTransition(() => { setChatModel(list[0]?.id ?? chatModel); });
+      startTransition(() => {
+        setChatModel(list[0]?.id ?? chatModel);
+      });
     }
   }, [chatProvider, data, chatModel]);
 
   const save = async () => {
-    setSaving(true); setMessage(null);
+    setSaving(true);
+    setMessage(null);
     try {
       setStoredAiProvider(chatProvider);
       const useProxy = ragProxyEnabled();
@@ -144,26 +167,34 @@ export function SettingsForm() {
         body: JSON.stringify({ chatProvider, chatModel }),
       });
       const j = (await res.json()) as SettingsPayload & { error?: string };
-      if (!res.ok) { setMessage({ text: j.error ?? "Error al guardar", ok: false }); return; }
-      setData(j); setChatProvider(j.chatProvider); setStoredAiProvider(j.chatProvider);
-      setChatModel(j.chatModel); setApiKeyInput("");
+      if (!res.ok) {
+        setMessage({ text: j.error ?? "Error al guardar", ok: false });
+        return;
+      }
+      setData(j);
+      setChatProvider(j.chatProvider);
+      setStoredAiProvider(j.chatProvider);
+      setChatModel(j.chatModel);
+      setApiKeyInput("");
       setMessage({
         text: useProxy
           ? "Guardado. La API key queda en cookie httpOnly en el servidor Next; no está en localStorage."
-          : "Guardado. La clave está en localStorage y se envía en cabeceras hacia el API.",
+          : "Guardado. La clave está en localStorage del navegador y se envía en cabeceras hacia el API.",
         ok: true,
       });
     } catch {
       setMessage({ text: "Error de red al guardar.", ok: false });
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading || !data) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="flex items-center gap-2 text-sm text-zinc-500">
-          <span className="size-4 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-400" />
-          {loading ? "Cargando configuración…" : "Sin datos."}
+        <div className="flex items-center gap-3 text-[var(--veta-fg-muted)]">
+          <Spinner size="md" />
+          <span className="text-sm">{loading ? "Cargando configuración…" : "Sin datos."}</span>
         </div>
       </div>
     );
@@ -172,152 +203,167 @@ export function SettingsForm() {
   const modelOpts = modelsForProvider(chatProvider, data);
 
   return (
-    <div className="space-y-5">
-      {/* Provider selector */}
-      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-inner shadow-black/20 ring-1 ring-white/[0.03]">
-        <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Proveedor de IA</p>
-        <div className="grid grid-cols-2 gap-2">
-          {data.aiProviders.map((p) => {
-            const meta = PROVIDER_META[p.id] ?? { color: "text-zinc-400 bg-zinc-400/10 border-zinc-400/20", icon: null };
-            const active = chatProvider === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => { setChatProvider(p.id as AiProviderId); setStoredAiProvider(p.id as AiProviderId); }}
-                className={`flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-medium transition-all duration-200 ${
-                  active
-                    ? `${meta.color} shadow-lg`
-                    : "border-white/[0.06] bg-transparent text-zinc-500 hover:border-white/[0.12] hover:text-zinc-300"
-                }`}
-              >
-                {meta.icon}
-                {p.label.split(" ")[0]}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Model selector */}
-      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-inner shadow-black/20 ring-1 ring-white/[0.03]">
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Modelo de chat</p>
-        <div className="space-y-2">
-          {modelOpts.map((m) => {
-            const active = chatModel === m.id;
-            return (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setChatModel(m.id)}
-                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm transition-all duration-200 ${
-                  active
-                    ? "border-violet-500/40 bg-gradient-to-r from-violet-500/15 to-cyan-500/5 text-violet-100 shadow-lg shadow-violet-950/20 ring-1 ring-violet-400/15"
-                    : "border-white/[0.06] bg-transparent text-zinc-400 hover:border-white/[0.12] hover:text-zinc-300"
-                }`}
-              >
-                <span className="font-medium">{m.label}</span>
-                {active && (
-                  <span className="flex size-4 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-md shadow-violet-900/40">
-                    <svg viewBox="0 0 24 24" fill="none" className="size-2.5" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                    </svg>
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* API Key */}
-      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-inner shadow-black/20 ring-1 ring-white/[0.03]">
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">API Key</p>
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium border ${
-            hasKey
-              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-              : "border-zinc-700 bg-zinc-800/50 text-zinc-500"
-          }`}>
-            <span className={`size-1.5 rounded-full ${hasKey ? "bg-emerald-400" : "bg-zinc-600"}`} />
-            {hasKey ? "Configurada" : "Sin clave"}
-          </span>
-        </div>
-
-        <input
-          type="password"
-          autoComplete="off"
-          className="w-full rounded-xl border border-white/[0.08] bg-zinc-900/40 px-4 py-3 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500/45 focus:ring-2 focus:ring-violet-500/20"
-          placeholder={hasKey ? "•••••••• dejar vacío para no cambiar" : "Pegar clave de OpenAI o Google AI Studio"}
-          value={apiKeyInput}
-          onChange={(e) => setApiKeyInput(e.target.value)}
-        />
-
-        <div className="mt-3 rounded-xl border border-white/[0.04] bg-white/[0.01] px-3 py-2.5 text-[11px] leading-relaxed text-zinc-600">
-          {ragProxyEnabled() ? (
-            <>
-              Con el proxy activo, la clave se guarda en una{" "}
-              <span className="text-zinc-400">cookie httpOnly</span> cifrada en el servidor Next (requiere{" "}
-              <code className="rounded bg-white/[0.06] px-1 text-violet-300">AI_SESSION_SECRET</code>
-              ). El cliente no puede leerla desde JavaScript.
-            </>
-          ) : (
-            <>
-              La clave se guarda en <span className="text-zinc-400">localStorage</span> del navegador y se envía en los headers{" "}
-              <code className="rounded bg-white/[0.06] px-1 text-violet-300">X-API-Key</code> y{" "}
-              <code className="rounded bg-white/[0.06] px-1 text-violet-300">X-AI-Provider</code> de cada petición.
-            </>
-          )}
-        </div>
-
-        {hasKey && (
-          <button
-            type="button"
-            className="mt-3 flex items-center gap-1.5 text-xs text-zinc-600 transition-colors hover:text-rose-400"
-            onClick={() => {
-              if (ragProxyEnabled()) {
-                void fetch("/api/ai-session", { method: "DELETE", credentials: "include" }).then(() =>
-                  setCookieSession(false),
-                );
-              }
-              clearStoredCredentials();
-              setApiKeyInput("");
-              setLsKeyNonce((n) => n + 1);
+    <div className="flex w-full min-w-0 touch-manipulation flex-col gap-5 sm:gap-6">
+      <Card variant="elevated" className="agentic-glass-panel rounded-2xl border-[var(--veta-border-soft)] sm:rounded-3xl">
+        <CardHeader className="space-y-1 px-4 pt-5 sm:px-6 sm:pt-6">
+          <CardTitle className="text-sm font-medium text-[var(--veta-fg)]">Proveedor de IA</CardTitle>
+          <CardDescription className="text-xs text-[var(--veta-fg-muted)]">
+            Motor que genera las respuestas y embeddings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="min-w-0 px-4 pb-5 pt-0 sm:px-6 sm:pb-6">
+          <ToggleGroup
+            type="single"
+            className="grid w-full grid-cols-1 gap-2 min-[360px]:grid-cols-2"
+            value={chatProvider}
+            onValueChange={(v) => {
+              if (!v) return;
+              const id = v as AiProviderId;
+              setChatProvider(id);
+              setStoredAiProvider(id);
             }}
           >
-            <svg viewBox="0 0 24 24" fill="none" className="size-3.5" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-            </svg>
-            Borrar credenciales del navegador
-          </button>
-        )}
-      </div>
+            {data.aiProviders.map((p) => (
+              <ToggleGroupItem
+                key={p.id}
+                value={p.id}
+                variant="outline"
+                className="h-auto min-h-12 gap-2.5 rounded-2xl px-4 py-3.5 text-sm data-[state=on]:border-[var(--veta-primary)] data-[state=on]:bg-[var(--veta-primary-subtle)] data-[state=on]:shadow-md min-[400px]:min-h-0 min-[400px]:py-3"
+              >
+                {PROVIDER_ICON[p.id] ?? null}
+                <span className="truncate text-sm">{p.label.split(" ")[0]}</span>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </CardContent>
+      </Card>
 
-      {/* Save button */}
-      <button
-        type="button"
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-violet-700 py-3 text-sm font-semibold text-white shadow-xl shadow-violet-900/35 ring-1 ring-white/10 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
-        disabled={saving}
-        onClick={() => void save()}
-      >
-        {saving && <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
-        {saving ? "Guardando…" : "Guardar configuración"}
-      </button>
+      <Card variant="elevated" className="agentic-glass-panel rounded-2xl border-[var(--veta-border-soft)] sm:rounded-3xl">
+        <CardHeader className="space-y-1 px-4 pt-5 sm:px-6 sm:pt-6">
+          <CardTitle className="text-sm font-medium text-[var(--veta-fg)]">Modelo de chat</CardTitle>
+          <CardDescription className="text-xs text-[var(--veta-fg-muted)]">
+            Elige el modelo para este proveedor (lista nativa, adaptable a móvil y escritorio).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="min-w-0 space-y-2 px-4 pb-5 pt-0 sm:px-6 sm:pb-6">
+          <Select value={chatModel} onValueChange={(v) => setChatModel(v)}>
+            <SelectTrigger
+              className="min-h-12 w-full min-w-0 rounded-2xl px-4 py-3 text-left text-sm shadow-sm sm:min-h-11 [&>span]:line-clamp-2 [&>span]:min-w-0 [&>span]:text-pretty [&>span]:text-[var(--veta-fg)]"
+              aria-label="Modelo de chat"
+            >
+              <SelectValue placeholder="Selecciona un modelo" />
+            </SelectTrigger>
+            <SelectContent
+              position="item-aligned"
+              className="z-[200] max-h-[min(55vh,24rem)] w-[var(--radix-select-trigger-width)] min-w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl shadow-2xl"
+            >
+              {modelOpts.map((m) => (
+                <SelectItem key={m.id} value={m.id} className="cursor-pointer rounded-xl py-2.5 text-sm">
+                  <span className="break-words [overflow-wrap:anywhere]">{m.label}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="flex items-start gap-2 text-[11px] leading-relaxed text-[var(--veta-fg-muted)]">
+            <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-[var(--veta-primary)]" aria-hidden />
+            <span>
+              Modelo activo: <span className="font-medium text-[var(--veta-fg)]">{modelOpts.find((x) => x.id === chatModel)?.label ?? chatModel}</span>
+            </span>
+          </p>
+        </CardContent>
+      </Card>
 
-      {/* Feedback message */}
-      {message && (
-        <div className={`rounded-xl border px-4 py-3 text-sm leading-relaxed ${
-          message.ok
-            ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
-            : "border-rose-500/20 bg-rose-500/5 text-rose-300"
-        }`}>
-          {message.ok && (
-            <svg viewBox="0 0 24 24" fill="none" className="mb-0.5 mr-1.5 inline size-4" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
+      <Card variant="elevated" className="agentic-glass-panel overflow-hidden rounded-2xl border-[var(--veta-border-soft)] sm:rounded-3xl">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 px-4 pt-5 sm:px-6 sm:pt-6">
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="text-sm font-medium text-[var(--veta-fg)]">Credenciales</CardTitle>
+            <CardDescription className="text-xs text-[var(--veta-fg-muted)]">API key y estado de la sesión.</CardDescription>
+          </div>
+          <Badge variant={hasKey ? "success" : "neutral"} emphasis="subtle" size="sm" className="shrink-0">
+            {hasKey ? "Configurada" : "Sin clave"}
+          </Badge>
+        </CardHeader>
+        <CardContent className="min-w-0 space-y-3 px-4 pb-1 pt-0 sm:px-6">
+          <FormField id="provider-api-key" label="Clave API">
+            <Input
+              type="password"
+              autoComplete="off"
+              appearance="filled"
+              size="lg"
+              className="w-full min-w-0 rounded-2xl"
+              placeholder={hasKey ? "•••••••• dejar vacío para no cambiar" : "Pegar clave de OpenAI o Google AI Studio"}
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+            />
+          </FormField>
+          <div className="rounded-2xl border border-[var(--veta-border-soft)] bg-[var(--veta-bg-subtle)] px-3 py-2.5 text-[11px] leading-relaxed text-[var(--veta-fg-muted)] sm:px-4">
+            {ragProxyEnabled() ? (
+              <>
+                Con el proxy activo, la clave se guarda en una{" "}
+                <span className="font-medium text-[var(--veta-fg)]">cookie httpOnly</span>{" "}
+                cifrada en el servidor Next (requiere <Code inline>AI_SESSION_SECRET</Code>). El cliente no puede leerla
+                desde JavaScript.
+              </>
+            ) : (
+              <>
+                La clave se guarda en{" "}
+                <span className="font-medium text-[var(--veta-fg)]">localStorage</span>{" "}
+                del navegador y se envía en los headers <Code inline>X-API-Key</Code> y <Code inline>X-AI-Provider</Code> de
+                cada petición.
+              </>
+            )}
+          </div>
+
+          {hasKey && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="agentic-tap h-auto min-h-11 w-full justify-start gap-1.5 px-2 text-sm text-[var(--veta-fg-muted)] hover:text-[var(--veta-danger)] sm:min-h-0"
+              onClick={() => {
+                if (ragProxyEnabled()) {
+                  void fetch("/api/ai-session", { method: "DELETE", credentials: "include" }).then(() =>
+                    setCookieSession(false),
+                  );
+                }
+                clearStoredCredentials();
+                setApiKeyInput("");
+                setLsKeyNonce((n) => n + 1);
+              }}
+            >
+              <Trash2 className="size-3.5" aria-hidden />
+              Borrar credenciales del navegador
+            </Button>
           )}
-          {message.text}
-        </div>
+        </CardContent>
+        <CardFooter className="border-t border-[var(--veta-border)] bg-[var(--veta-bg-subtle)]/50 px-4 pb-5 pt-5 sm:px-6">
+          <Button
+            type="button"
+            variant="elevated"
+            size="lg"
+            fullWidth
+            disabled={saving}
+            onClick={() => void save()}
+            className="agentic-btn-send gap-2.5 rounded-2xl px-6 py-3.5 text-base font-semibold min-h-[3.25rem] sm:min-h-[3.5rem]"
+          >
+            {saving ? <Spinner size="sm" tone="current" className="opacity-90" /> : null}
+            {saving ? "Guardando…" : "Guardar configuración"}
+          </Button>
+        </CardFooter>
+      </Card>
+
+      {message && (
+        <Alert variant={message.ok ? "success" : "danger"}>
+          <AlertDescription>
+            {message.ok && (
+              <span className="mb-1 flex items-center gap-1.5 font-medium">
+                <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+                Listo
+              </span>
+            )}
+            <span className="block leading-relaxed">{message.text}</span>
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );

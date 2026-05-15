@@ -12,18 +12,49 @@ import ReactMarkdown from "react-markdown";
 import type { ChatMessage, Citation } from "@/lib/chat-types";
 import { apiUrl } from "@/lib/api-url";
 import { aiRequestHeaders } from "@/lib/client-openai-key";
+import { useStudioKnowledgeBases } from "@/hooks/use-studio-knowledge-bases";
+import { cn } from "@vetaui/foundations";
+import {
+  Alert,
+  AlertDescription,
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Button,
+  Card,
+  Kbd,
+  ScrollArea,
+  Skeleton,
+  Textarea,
+} from "@vetaui/atoms";
+import { EmptyState } from "@vetaui/molecules";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@vetaui/organisms/composites";
+import { Heading, HStack, Text, VStack } from "@vetaui/templates";
+import { AgenticAurora } from "@/components/agentic/agentic-chrome";
+import { AGENTIC_CTA_OUTLINE_CLASS } from "@/components/agentic/agentic-app-page-shell";
+import { KnowledgeBaseDisplay } from "@/components/agentic/knowledge-base-display";
+import {
+  Bot,
+  FileText,
+  LibraryBig,
+  Menu,
+  MessageSquare,
+  PanelLeft,
+  PanelLeftClose,
+  Send,
+  Settings,
+  Sparkles,
+  User,
+} from "lucide-react";
 
-type KnowledgeBaseRow = { id: string; name: string; createdAt: string };
+const DESKTOP_SIDEBAR_LS_KEY = "agentic-studio-sidebar-collapsed";
+
 type ConversationRow = { id: string; title: string | null; createdAt: string; updatedAt: string };
-type DocumentRow = {
-  id: string;
-  title: string;
-  fileName: string;
-  status: string;
-  statusMessage: string | null;
-  createdAt: string;
-};
-type UploadPhase = "idle" | "uploading" | "indexing";
 
 type ToastState = { message: string; tone: "error" | "info" } | null;
 
@@ -65,143 +96,57 @@ function groupCitations(citations: Citation[]): GroupedCitation[] {
   return Array.from(map.values());
 }
 
-function documentStatusMeta(status: string): { label: string; dot: string; badge: string } {
-  switch (status) {
-    case "pending":
-      return { label: "En cola", dot: "bg-amber-400", badge: "text-amber-300 bg-amber-400/10 border-amber-400/20" };
-    case "processing":
-      return { label: "Indexando…", dot: "bg-violet-400", badge: "text-violet-300 bg-violet-400/10 border-violet-400/20" };
-    case "indexed":
-      return { label: "Listo", dot: "bg-emerald-400", badge: "text-emerald-300 bg-emerald-400/10 border-emerald-400/20" };
-    case "error":
-      return { label: "Error", dot: "bg-rose-400", badge: "text-rose-300 bg-rose-400/10 border-rose-400/20" };
-    default:
-      return { label: status, dot: "bg-zinc-600", badge: "text-zinc-400 bg-zinc-400/10 border-zinc-400/20" };
-  }
-}
-
-function formatDocError(msg: string): string {
-  return msg.replace(/^\[GoogleGenerativeAI Error\]:\s*/i, "").trim();
-}
-
-// ── SVG Icons ─────────────────────────────────────────────────────────────────
-const IconBot = () => (
-  <svg viewBox="0 0 24 24" fill="none" className="size-4" stroke="currentColor" strokeWidth={1.5}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
-  </svg>
-);
-
-const IconUser = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
-    <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
-  </svg>
-);
-
-const IconUpload = () => (
-  <svg viewBox="0 0 24 24" fill="none" className="size-4" stroke="currentColor" strokeWidth={1.5}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-  </svg>
-);
-
-const IconDocument = () => (
-  <svg viewBox="0 0 24 24" fill="none" className="size-3.5 shrink-0" stroke="currentColor" strokeWidth={1.5}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-  </svg>
-);
-
-const IconSend = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
-    <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.405Z" />
-  </svg>
-);
-
-const IconRefresh = () => (
-  <svg viewBox="0 0 24 24" fill="none" className="size-3" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-  </svg>
-);
-
-const IconTrash = () => (
-  <svg viewBox="0 0 24 24" fill="none" className="size-3" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-  </svg>
-);
-
-const IconChevron = ({ open }: { open: boolean }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={`size-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`} stroke="currentColor" strokeWidth={2.5}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-  </svg>
-);
-
-const IconMenu = () => (
-  <svg viewBox="0 0 24 24" fill="none" className="size-5" stroke="currentColor" strokeWidth={2} aria-hidden>
-    <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
-  </svg>
-);
-
-// ── Collapsible citation group ─────────────────────────────────────────────
+// ── Accordion citation group (@vetaui/organisms) ───────────────────────────
 function CitationGroup({ group, docNumber }: { group: GroupedCitation; docNumber: number }) {
-  const [open, setOpen] = useState(true);
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.05] to-white/[0.02] shadow-lg shadow-black/20 ring-1 ring-white/[0.04] backdrop-blur-sm">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2.5 px-3.5 py-3 text-left transition-colors hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/40"
-      >
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/35 to-cyan-500/20 text-[10px] font-bold tabular-nums text-violet-100 ring-1 ring-white/10">
-          {docNumber}
-        </span>
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="text-violet-300/70"><IconDocument /></span>
-          <span className="truncate text-xs font-medium tracking-tight text-zinc-100">{group.title}</span>
-        </span>
-        <span className="shrink-0 text-zinc-500"><IconChevron open={open} /></span>
-      </button>
-      {open && (
-        <div className="divide-y divide-white/[0.05] border-t border-white/[0.06] bg-black/15">
-          {group.chunks.map((chunk) => (
-            <div key={chunk.chunkId} className="px-3.5 py-3">
-              {chunk.page != null && (
-                <span className="mb-1.5 inline-block rounded-md border border-white/[0.06] bg-zinc-900/80 px-2 py-0.5 text-[10px] font-medium text-cyan-200/90">
-                  pág. {chunk.page}
-                </span>
-              )}
-              <p className="text-[11px] leading-relaxed text-zinc-400 line-clamp-4">
-                {chunk.excerpt}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <AccordionItem value={group.documentId} className="border-none">
+      <Card variant="interactive" className="overflow-hidden border-[var(--veta-border-soft)] bg-[var(--veta-bg-subtle)] shadow-md backdrop-blur-sm">
+        <AccordionTrigger className="group min-h-12 h-auto justify-between gap-2 rounded-none px-3.5 py-3 text-[var(--veta-fg)] hover:bg-[var(--veta-bg-muted)] hover:no-underline sm:min-h-0 [&[data-state=open]]:bg-[var(--veta-bg-muted)]/80">
+          <span className="flex min-w-0 flex-1 items-center gap-2.5 pr-2 text-left">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-[var(--veta-primary-subtle)] text-[10px] font-bold tabular-nums text-[var(--veta-primary)] ring-1 ring-[var(--veta-border-soft)]">
+              {docNumber}
+            </span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <FileText className="size-3.5 shrink-0 text-[var(--veta-primary)]" aria-hidden />
+              <span className="truncate text-xs font-medium tracking-tight">{group.title}</span>
+            </span>
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="p-0 pb-0 [&>div]:pb-0 [&>div]:pt-0">
+          <div className="divide-y divide-[var(--veta-border-soft)] border-t border-[var(--veta-border-soft)] bg-[color-mix(in_oklch,var(--veta-bg-subtle)_88%,transparent)]">
+            {group.chunks.map((chunk) => (
+              <div key={chunk.chunkId} className="px-3.5 py-3">
+                {chunk.page != null && (
+                  <Badge variant="info" emphasis="subtle" size="sm" className="mb-1.5">
+                    pág. {chunk.page}
+                  </Badge>
+                )}
+                <p className="text-[11px] leading-relaxed text-[var(--veta-fg-muted)] line-clamp-4">{chunk.excerpt}</p>
+              </div>
+            ))}
+          </div>
+        </AccordionContent>
+      </Card>
+    </AccordionItem>
   );
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 export function ChatApp() {
-  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRow[]>([]);
-  const [kbId, setKbId] = useState<string>("");
+  const { knowledgeBases, kbId, setKbId, loadingKb } = useStudioKnowledgeBases();
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [loadingConversations, setLoadingConversations] = useState(false);
-  const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [loadingKb, setLoadingKb] = useState(true);
   const [sending, setSending] = useState(false);
-  const [uploadPhase, setUploadPhase] = useState<UploadPhase>("idle");
-  const [reindexingId, setReindexingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sources, setSources] = useState<Citation[]>([]);
   const [toast, setToast] = useState<ToastState>(null);
   const [awaitingFirstToken, setAwaitingFirstToken] = useState(false);
   const [mobileSourcesOpen, setMobileSourcesOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollAttemptsRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -217,32 +162,6 @@ export function ChatApp() {
   const pushToast = useCallback((message: string, tone: "error" | "info" = "info") => {
     setToast({ message, tone });
   }, []);
-
-  const loadKnowledgeBases = useCallback(async () => {
-    try {
-      const res = await fetch(apiUrl("/api/knowledge-bases"), { credentials: "include" });
-      const data = (await res.json()) as { knowledgeBases: KnowledgeBaseRow[] };
-      setKnowledgeBases(data.knowledgeBases ?? []);
-      setKbId((id) => id || data.knowledgeBases?.[0]?.id || "");
-    } catch { setKnowledgeBases([]); }
-    finally { setLoadingKb(false); }
-  }, []);
-
-  const fetchDocuments = useCallback(async (id: string): Promise<DocumentRow[]> => {
-    if (!id) return [];
-    try {
-      const res = await fetch(apiUrl(`/api/documents?knowledgeBaseId=${encodeURIComponent(id)}`), {
-        credentials: "include",
-      });
-      const data = (await res.json()) as { documents: DocumentRow[] };
-      return data.documents ?? [];
-    } catch { return []; }
-  }, []);
-
-  const loadDocuments = useCallback(async (id: string) => {
-    const docs = await fetchDocuments(id);
-    setDocuments(docs);
-  }, [fetchDocuments]);
 
   const loadConversations = useCallback(async (id: string) => {
     if (!id) {
@@ -308,84 +227,34 @@ export function ChatApp() {
     [openConversation],
   );
 
-  const stopIndexingPoll = useCallback(() => {
-    if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
-    pollAttemptsRef.current = 0;
+  useEffect(() => {
+    startTransition(() => {
+      try {
+        if (localStorage.getItem(DESKTOP_SIDEBAR_LS_KEY) === "1") {
+          setDesktopSidebarCollapsed(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    });
   }, []);
 
-  const startIndexingPoll = useCallback(() => {
-    stopIndexingPoll();
-    const run = async () => {
-      pollAttemptsRef.current += 1;
-      const docs = await fetchDocuments(kbId);
-      setDocuments(docs);
-      const busy = docs.some((d) => d.status === "pending" || d.status === "processing");
-      if (!busy || pollAttemptsRef.current >= 140) {
-        stopIndexingPoll(); setUploadPhase("idle"); setReindexingId(null);
-      }
-    };
-    void run();
-    pollTimerRef.current = setInterval(() => void run(), 1800);
-  }, [kbId, fetchDocuments, stopIndexingPoll]);
-
-  const reindexDoc = useCallback(async (documentId: string) => {
-    setReindexingId(documentId);
+  useEffect(() => {
     try {
-      const res = await fetch(apiUrl(`/api/documents/${documentId}/reindex`), {
-        method: "POST",
-        headers: { ...aiRequestHeaders() },
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = (await res.json()) as { error?: string };
-        setReindexingId(null);
-        pushToast(err.error ?? "No se pudo reindexar", "error");
-        return;
-      }
-      await loadDocuments(kbId);
-      startIndexingPoll();
+      localStorage.setItem(DESKTOP_SIDEBAR_LS_KEY, desktopSidebarCollapsed ? "1" : "0");
     } catch {
-      setReindexingId(null);
-      pushToast("Error de red al reindexar", "error");
+      /* ignore */
     }
-  }, [kbId, loadDocuments, startIndexingPoll, pushToast]);
-
-  const deleteDoc = useCallback(async (documentId: string, title: string) => {
-    if (!window.confirm(`¿Eliminar "${title}"? Se borrará el archivo y todos sus fragmentos.`)) return;
-    setDeletingId(documentId);
-    try {
-      const res = await fetch(apiUrl(`/api/documents/${documentId}`), {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const err = (await res.json()) as { error?: string };
-        pushToast(err.error ?? "No se pudo eliminar", "error");
-        return;
-      }
-      await loadDocuments(kbId);
-      setSources((prev) => prev.filter((c) => c.documentId !== documentId));
-    } catch {
-      pushToast("Error de red al eliminar", "error");
-    }
-    finally { setDeletingId(null); }
-  }, [kbId, loadDocuments, pushToast]);
-
-  useEffect(() => { startTransition(() => { void loadKnowledgeBases(); }); }, [loadKnowledgeBases]);
+  }, [desktopSidebarCollapsed]);
 
   useEffect(() => {
-    stopIndexingPoll();
     startTransition(() => {
       setConversationId(null);
       setMessages([]);
       setSources([]);
-      setUploadPhase("idle"); setReindexingId(null); setDeletingId(null);
-      void loadDocuments(kbId);
       void loadConversations(kbId);
     });
-  }, [kbId, loadDocuments, loadConversations, stopIndexingPoll]);
-
-  useEffect(() => () => stopIndexingPoll(), [stopIndexingPoll]);
+  }, [kbId, loadConversations]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -570,427 +439,572 @@ export function ChatApp() {
     }
   };
 
-  const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !kbId) return;
-    setUploadPhase("uploading");
-    try {
-      const fd = new FormData();
-      fd.set("file", file); fd.set("knowledgeBaseId", kbId);
-      const res = await fetch(apiUrl("/api/documents"), {
-        method: "POST",
-        headers: { ...aiRequestHeaders() },
-        credentials: "include",
-        body: fd,
-      });
-      if (!res.ok) {
-        const err = (await res.json()) as { error?: string };
-        setUploadPhase("idle");
-        pushToast(err.error ?? "Error al subir", "error");
-        return;
-      }
-      setUploadPhase("indexing");
-      await loadDocuments(kbId);
-      startIndexingPoll();
-    } catch {
-      setUploadPhase("idle");
-      pushToast("Error al subir el archivo", "error");
-    }
-  };
-
-  const indexingBusy = uploadPhase !== "idle" || documents.some((d) => d.status === "pending" || d.status === "processing");
   const groupedSources = groupCitations(sources);
   const activeKbName = knowledgeBases.find((k) => k.id === kbId)?.name ?? null;
+  const singleKbMode = knowledgeBases.length === 1;
 
   const sourcesPanelInner =
     groupedSources.length === 0 ? (
-      <div className="flex flex-col items-center justify-center gap-3 px-4 py-14 text-center">
-        <div className="flex size-12 items-center justify-center rounded-2xl border border-white/[0.08] bg-gradient-to-br from-zinc-800/50 to-zinc-900/30 text-zinc-500 ring-1 ring-white/[0.04]">
-          <IconDocument />
-        </div>
-        <p className="max-w-[14rem] text-xs leading-relaxed text-zinc-500">
-          Tras cada respuesta verás aquí los fragmentos citados del documento.
-        </p>
-      </div>
+      <EmptyState
+        className="mx-auto my-2 max-w-[17rem] border-[var(--veta-border-soft)] bg-[color-mix(in_oklch,var(--veta-surface-elevated)_75%,transparent)] py-8 shadow-sm"
+        icon={<FileText className="text-[var(--veta-primary)]" aria-hidden />}
+        title="Sin citas aún"
+        description="Tras cada respuesta verás aquí los fragmentos citados del documento recuperado."
+      />
     ) : (
-      <div className="space-y-2">
+      <Accordion
+        type="multiple"
+        defaultValue={groupedSources.map((g) => g.documentId)}
+        className="space-y-2"
+      >
         {groupedSources.map((group, i) => (
           <CitationGroup key={group.documentId} group={group} docNumber={i + 1} />
         ))}
-      </div>
+      </Accordion>
     );
 
   return (
-    <div className="relative isolate flex min-h-0 flex-1 flex-col text-zinc-100 md:flex-row">
-      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden>
-        <div className="absolute -left-[25%] -top-[10%] h-[min(85vh,780px)] w-[min(90vw,640px)] rounded-full bg-violet-600/[0.14] blur-[130px]" />
-        <div className="absolute -right-[20%] top-[20%] h-[min(55vh,480px)] w-[min(75vw,520px)] rounded-full bg-cyan-400/[0.09] blur-[110px]" />
-        <div className="absolute bottom-[-15%] left-[30%] h-[min(45vh,400px)] w-[min(60vw,440px)] rounded-full bg-fuchsia-600/[0.07] blur-[100px]" />
-      </div>
+    <div className="relative isolate flex h-full min-h-0 w-full max-w-[100dvw] flex-1 flex-col overflow-hidden text-[var(--veta-fg)] md:flex-row md:items-stretch">
+      <AgenticAurora />
 
       {toast && (
         <div
-          className="pointer-events-none fixed inset-x-0 z-[70] flex justify-center px-3 max-sm:px-2"
+          className="pointer-events-none fixed inset-x-0 z-[70] flex justify-center px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] max-sm:px-2"
           style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
           role="status"
           aria-live="polite"
         >
-          <div
-            className={`pointer-events-auto flex max-w-md items-center gap-3 rounded-2xl border px-4 py-3 text-sm shadow-2xl backdrop-blur-xl ${
-              toast.tone === "error"
-                ? "border-rose-400/25 bg-rose-950/90 text-rose-50 ring-1 ring-rose-500/20"
-                : "border-white/[0.12] bg-zinc-950/85 text-zinc-50 ring-1 ring-violet-500/15"
-            }`}
+          <Alert
+            variant={toast.tone === "error" ? "danger" : "info"}
+            className={cn(
+              "pointer-events-auto flex max-w-md items-center gap-3 border shadow-2xl backdrop-blur-xl",
+              toast.tone === "error" ? "pr-2" : "pr-2",
+            )}
           >
-            <span className="flex-1 leading-snug">{toast.message}</span>
-            <button
-              type="button"
-              className="rounded-lg px-2.5 py-1 text-xs text-zinc-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50"
-              onClick={() => setToast(null)}
-              aria-label="Cerrar aviso"
-            >
+            <AlertDescription className="flex-1 leading-snug">{toast.message}</AlertDescription>
+            <Button type="button" variant="ghost" size="sm" className="agentic-tap shrink-0 text-sm" onClick={() => setToast(null)} aria-label="Cerrar aviso">
               Cerrar
-            </button>
-          </div>
+            </Button>
+          </Alert>
         </div>
       )}
 
       {mobileSidebarOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-[84] bg-black/60 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-[84] bg-[var(--veta-bg-overlay)] backdrop-blur-md md:hidden"
           aria-label="Cerrar menú de biblioteca"
           onClick={() => setMobileSidebarOpen(false)}
         />
       )}
 
-      {/* ── Sidebar (drawer en móvil, columna fija en md+) ───────────────── */}
+      {/* ── Sidebar (drawer en móvil, columna fija en md+; colapsable en web) ─ */}
       <aside
-        className={`flex h-[100dvh] shrink-0 flex-col border-white/[0.06] bg-zinc-950/95 backdrop-blur-2xl transition-transform duration-300 ease-out supports-[backdrop-filter]:bg-zinc-950/80 md:h-auto md:min-h-0 md:bg-zinc-950/35 supports-[backdrop-filter]:md:bg-zinc-950/25 ${
-          mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } fixed inset-y-0 left-0 z-[85] w-[min(22rem,calc(100vw-8px))] border-r pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl shadow-black/50 md:relative md:inset-auto md:z-auto md:w-[19rem] md:translate-x-0 md:border-b-0 md:border-r md:py-0 md:pb-0 md:pt-0 md:shadow-none`}
+        className={cn(
+          "agentic-glass-panel agentic-col-rail flex max-h-dvh shrink-0 flex-col overflow-hidden transition-[transform,width,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:h-full md:min-h-0 md:max-h-none md:flex-none",
+          mobileSidebarOpen ? "translate-x-0" : "-translate-x-full",
+          desktopSidebarCollapsed
+            ? "md:w-0 md:min-w-0 md:max-w-0 md:border-transparent md:opacity-0 md:pointer-events-none md:shadow-none"
+            : "md:w-[min(20.5rem,26vw)] md:max-w-none md:opacity-100",
+          "fixed inset-y-0 left-0 z-[85] w-[min(22rem,calc(100dvw-1.5rem))] max-w-[min(22rem,calc(100dvw-1.5rem))] pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-[0_24px_64px_-28px_color-mix(in_oklch,var(--veta-primary)_18%,transparent)] md:relative md:inset-auto md:z-auto md:translate-x-0 md:self-stretch md:py-0 md:pb-0 md:pt-0 md:shadow-none",
+        )}
+        aria-hidden={desktopSidebarCollapsed ? true : undefined}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-4 py-3 md:hidden">
-          <span className="text-sm font-semibold tracking-tight text-zinc-100">Biblioteca</span>
-          <button
+        <div className="flex h-full min-h-0 w-[min(22rem,calc(100dvw-1.5rem))] min-w-0 flex-col md:w-[min(20.5rem,26vw)]">
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--veta-border)] px-4 py-3 md:hidden">
+          <Text variant="small" weight="semibold" className="text-[var(--veta-fg)]">
+            Biblioteca
+          </Text>
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
+            className="agentic-tap shrink-0 rounded-2xl text-sm"
             onClick={() => setMobileSidebarOpen(false)}
-            className="rounded-lg border border-white/[0.1] bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.1] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50"
           >
             Cerrar
-          </button>
+          </Button>
         </div>
         {/* Brand */}
-        <div className="border-b border-white/[0.06] px-5 py-5">
-          <div className="flex items-center gap-3">
-            <div className="relative flex size-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 p-[1px] shadow-lg shadow-violet-600/25 ring-1 ring-white/10">
-              <div className="flex size-full items-center justify-center rounded-2xl bg-zinc-950/90">
-                <svg viewBox="0 0 24 24" fill="none" className="size-[18px] text-violet-200" stroke="currentColor" strokeWidth={1.75}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                </svg>
+        <div className="border-b border-[var(--veta-border)] px-5 py-5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <div className="relative flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--veta-primary-subtle)] shadow-[inset_0_1px_0_color-mix(in_oklch,var(--veta-fg)_10%,transparent)] ring-1 ring-[var(--veta-border)]">
+                <div className="flex size-full items-center justify-center rounded-[13px] bg-[color-mix(in_oklch,var(--veta-bg)_55%,transparent)]">
+                  <Sparkles className="size-5 text-[var(--veta-primary)]" aria-hidden />
+                </div>
               </div>
+              <VStack gap={1} className="min-w-0 flex-1">
+                <HStack gap={2} align="center" className="min-w-0">
+                  <Heading as="h1" size="md" weight="semibold" className="truncate tracking-tight text-[var(--veta-fg)]">
+                    Agentic RAG
+                  </Heading>
+                  <Badge variant="brand" emphasis="subtle" size="sm" className="shrink-0 tabular-nums">
+                    Studio
+                  </Badge>
+                </HStack>
+                <Text as="span" variant="caption" tone="muted" className="uppercase tracking-[0.2em]">
+                  Postgres · pgvector
+                </Text>
+              </VStack>
             </div>
-            <div className="min-w-0">
-              <h1 className="text-[15px] font-semibold tracking-tight text-gradient-brand">RAG Studio</h1>
-              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.2em] text-zinc-500">Postgres · pgvector</p>
-            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="agentic-tap-icon hidden shrink-0 rounded-xl text-[var(--veta-fg-muted)] hover:bg-[var(--veta-bg-muted)] hover:text-[var(--veta-fg)] md:inline-flex"
+              onClick={() => setDesktopSidebarCollapsed(true)}
+              aria-label="Ocultar biblioteca"
+            >
+              <PanelLeftClose className="size-5" aria-hidden />
+            </Button>
           </div>
         </div>
 
         {/* Conversaciones */}
-        <div className="border-b border-white/[0.06] px-4 py-4">
-          <div className="mb-2.5 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Conversaciones</p>
-            <button
+        <div className="border-b border-[var(--veta-border)] px-4 py-4">
+          <div className="mb-2.5 flex items-center gap-2">
+            <Text
+              variant="overline"
+              tone="muted"
+              weight="semibold"
+              className="min-w-0 flex-1 truncate tracking-[0.18em]"
+            >
+              Conversaciones
+            </Text>
+            <Button
               type="button"
+              variant="soft"
+              size="md"
+              className="agentic-tap h-auto min-h-10 shrink-0 rounded-2xl px-3 text-xs font-semibold sm:h-8 sm:min-h-0 sm:px-2.5 sm:text-[11px]"
               onClick={startNewConversation}
-              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-zinc-300 transition-all hover:border-violet-400/35 hover:bg-violet-500/10 hover:text-violet-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45"
             >
               Nueva
-            </button>
+            </Button>
           </div>
-          <div className="max-h-36 space-y-1.5 overflow-y-auto">
+          <ScrollArea className="min-h-[9rem] max-h-[min(36vh,14rem)] pr-3 sm:h-40 sm:max-h-none">
+            <div className="space-y-1.5">
             {loadingConversations ? (
               <div className="space-y-2 py-0.5" aria-busy="true" aria-label="Cargando conversaciones">
-                <div className="h-10 animate-pulse rounded-xl bg-gradient-to-r from-white/[0.04] to-white/[0.08]" />
-                <div className="h-10 animate-pulse rounded-xl bg-gradient-to-r from-white/[0.04] to-white/[0.08]" />
-                <div className="h-10 w-4/5 animate-pulse rounded-xl bg-gradient-to-r from-white/[0.04] to-white/[0.08]" />
+                <Skeleton className="h-10 w-full rounded-xl" shape="rounded" />
+                <Skeleton className="h-10 w-full rounded-xl" shape="rounded" />
+                <Skeleton className="h-10 w-4/5 rounded-xl" shape="rounded" />
               </div>
             ) : conversations.length === 0 ? (
-              <p className="text-[11px] leading-relaxed text-zinc-600">Sin historial aún.</p>
+              <EmptyState
+                className="border-none bg-transparent px-2 py-4 shadow-none sm:p-3"
+                icon={<MessageSquare className="text-[var(--veta-fg-muted)]" aria-hidden />}
+                title="Sin historial"
+                description="Las conversaciones guardadas aparecerán aquí."
+              />
             ) : (
               conversations.map((c) => (
-                <button
+                <Button
                   key={c.id}
                   type="button"
-                  onClick={() => void openConversationFromSidebar(c.id)}
-                  className={`group flex w-full flex-col rounded-xl border px-3 py-2 text-left text-[11px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 ${
+                  variant={conversationId === c.id ? "secondary" : "ghost"}
+                  fullWidth
+                  className={cn(
+                    "group h-auto min-h-11 flex-col items-stretch gap-1 px-3 py-2.5 text-left text-sm font-normal transition-all sm:min-h-0 sm:gap-0.5 sm:py-2 sm:text-[11px]",
                     conversationId === c.id
-                      ? "border-violet-500/35 bg-gradient-to-r from-violet-500/15 to-cyan-500/5 text-zinc-100 shadow-md shadow-violet-900/20 ring-1 ring-violet-400/20"
-                      : "border-transparent bg-white/[0.02] text-zinc-400 hover:border-white/[0.08] hover:bg-white/[0.05] hover:text-zinc-200"
-                  }`}
+                      ? "border border-[var(--veta-primary)] shadow-sm"
+                      : "text-[var(--veta-fg-muted)] hover:text-[var(--veta-fg)]",
+                  )}
+                  onClick={() => void openConversationFromSidebar(c.id)}
                 >
-                  <span className="truncate font-medium tracking-tight">{c.title || "Sin título"}</span>
-                  <span className="truncate text-[10px] text-zinc-600 group-hover:text-zinc-500">{formatShortDate(c.updatedAt)}</span>
-                </button>
+                  <span className="truncate text-[13px] font-medium leading-snug tracking-tight text-[var(--veta-fg)] sm:text-[11px]">
+                    {c.title || "Sin título"}
+                  </span>
+                  <span className="truncate text-xs text-[var(--veta-fg-muted)] group-hover:text-[var(--veta-fg-subtle)] sm:text-[10px]">
+                    {formatShortDate(c.updatedAt)}
+                  </span>
+                </Button>
               ))
             )}
-          </div>
-        </div>
-
-        {/* KB selector */}
-        <div className="space-y-3 px-4 py-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Base de conocimiento</p>
-          <select
-            aria-label="Base de conocimiento activa"
-            className="w-full cursor-pointer rounded-xl border border-white/[0.08] bg-zinc-900/50 px-3.5 py-2.5 text-sm text-zinc-100 shadow-inner shadow-black/20 outline-none ring-1 ring-white/[0.03] transition-all hover:border-violet-400/25 focus:border-violet-400/50 focus:ring-2 focus:ring-violet-500/25 disabled:cursor-not-allowed disabled:opacity-50"
-            value={kbId}
-            onChange={(e) => setKbId(e.target.value)}
-            disabled={loadingKb || knowledgeBases.length === 0}
-          >
-            {knowledgeBases.length === 0 ? (
-              <option value="">Ejecuta npm run db:seed</option>
-            ) : (
-              knowledgeBases.map((kb) => (
-                <option key={kb.id} value={kb.id}>{kb.name}</option>
-              ))
-            )}
-          </select>
-
-          {/* Upload */}
-          <label
-            className={`group flex cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-dashed px-3 py-3.5 text-xs font-medium transition-all duration-300 focus-within:border-violet-400/45 focus-within:shadow-[0_0_0_3px_rgba(139,92,246,0.15)] ${
-              uploadPhase !== "idle"
-                ? "cursor-wait border-violet-400/35 bg-violet-500/10 text-violet-200"
-                : "border-white/[0.1] bg-gradient-to-br from-white/[0.04] to-transparent text-zinc-500 hover:border-cyan-400/25 hover:bg-cyan-500/[0.06] hover:text-zinc-300"
-            }`}
-          >
-            <input type="file" className="hidden" accept=".pdf,.txt,.md" onChange={onUpload} disabled={!kbId || uploadPhase !== "idle"} />
-            {uploadPhase !== "idle" ? (
-              <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-violet-400/50 border-t-cyan-300" />
-            ) : (
-              <span className="text-violet-300/80 transition-colors group-hover:text-cyan-300/90"><IconUpload /></span>
-            )}
-            {uploadPhase === "uploading" ? "Subiendo…" : uploadPhase === "indexing" ? "Indexando…" : "Subir PDF o texto"}
-          </label>
-        </div>
-
-        {/* Document list */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Archivos</p>
-            {indexingBusy && (
-              <span className="flex items-center gap-1.5 text-[10px] font-medium text-cyan-300/90">
-                <span className="relative flex size-2">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-cyan-400/40 opacity-75" />
-                  <span className="relative inline-flex size-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
-                </span>
-                Procesando
-              </span>
-            )}
-          </div>
-          {indexingBusy && (
-            <div className="mb-3 h-1 overflow-hidden rounded-full bg-zinc-800/80 ring-1 ring-white/[0.05]">
-              <div className="h-full w-1/2 animate-shimmer-slow rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-400" />
             </div>
-          )}
-          {documents.length === 0 ? (
-            <p className="text-xs leading-relaxed text-zinc-600">Ningún documento aún.</p>
-          ) : (
-            <ul className="space-y-2.5">
-              {documents.map((d) => {
-                const meta = documentStatusMeta(d.status);
-                const rowBusy = d.status === "pending" || d.status === "processing" || reindexingId === d.id || deletingId === d.id;
-                return (
-                  <li
-                    key={d.id}
-                    className="group rounded-2xl border border-white/[0.06] bg-gradient-to-br from-white/[0.05] to-white/[0.02] p-3 shadow-md shadow-black/25 ring-1 ring-white/[0.03] transition-all hover:border-white/[0.1] hover:shadow-lg hover:shadow-violet-950/30"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      {rowBusy ? (
-                        <span className="mt-0.5 size-4 shrink-0 animate-spin rounded-full border-2 border-zinc-700 border-t-violet-400" />
-                      ) : (
-                        <span className={`mt-1.5 size-2 shrink-0 rounded-full ${meta.dot}`} />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-semibold tracking-tight text-zinc-100">{d.title}</div>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          <span className={`inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${meta.badge}`}>
-                            {meta.label}
-                          </span>
-                          {d.status !== "processing" && (
-                            <>
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-1 rounded-lg border border-white/[0.08] bg-zinc-900/40 px-2 py-1 text-[10px] text-zinc-400 transition-all hover:border-violet-400/35 hover:text-violet-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45 disabled:cursor-not-allowed disabled:opacity-30"
-                                disabled={uploadPhase !== "idle" || reindexingId !== null || deletingId !== null}
-                                onClick={() => void reindexDoc(d.id)}
-                              >
-                                <IconRefresh />
-                                {reindexingId === d.id ? "…" : "Reindexar"}
-                              </button>
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-1 rounded-lg border border-white/[0.08] bg-zinc-900/40 px-2 py-1 text-[10px] text-zinc-500 transition-all hover:border-rose-400/35 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/45 disabled:cursor-not-allowed disabled:opacity-30"
-                                disabled={uploadPhase !== "idle" || reindexingId !== null || deletingId !== null}
-                                onClick={() => void deleteDoc(d.id, d.title)}
-                              >
-                                <IconTrash />
-                                {deletingId === d.id ? "…" : "Eliminar"}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                        {d.statusMessage && (
-                          <p className="mt-2 max-h-20 overflow-y-auto break-words text-[10px] leading-relaxed text-amber-400/80">
-                            {formatDocError(d.statusMessage)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          </ScrollArea>
+        </div>
+
+        {/* Base de conocimiento */}
+        <div className="space-y-3 border-b border-[var(--veta-border)] px-4 py-4">
+          {knowledgeBases.length !== 1 ? (
+            <Text variant="overline" tone="muted" weight="semibold" className="tracking-[0.18em]">
+              Base de conocimiento
+            </Text>
+          ) : null}
+          <KnowledgeBaseDisplay
+            knowledgeBases={knowledgeBases}
+            value={kbId}
+            onValueChange={setKbId}
+            loading={loadingKb}
+            instanceId="studio-sidebar"
+            size="sidebar"
+          />
+
+          <div className="rounded-2xl border border-[var(--veta-border-soft)] bg-[color-mix(in_oklch,var(--veta-bg-subtle)_88%,transparent)] p-4 shadow-sm">
+            <Text variant="overline" tone="muted" weight="semibold" className="mb-2 tracking-[0.18em]">
+              Indexación
+            </Text>
+            <Text variant="caption" tone="muted" className="mb-4 block leading-relaxed">
+              Sube y gestiona archivos en la vista dedicada (mismo estilo que Ajustes de IA).
+            </Text>
+            <Button
+              variant="outline"
+              fullWidth
+              size="lg"
+              className={`agentic-tap h-auto min-h-[3rem] gap-2.5 px-5 py-3 text-base text-[var(--veta-fg)] ${AGENTIC_CTA_OUTLINE_CLASS}`}
+              asChild
+            >
+              <Link href={kbId ? `/indexar?kb=${encodeURIComponent(kbId)}` : "/indexar"} onClick={() => setMobileSidebarOpen(false)}>
+                <LibraryBig className="size-5 shrink-0 text-[var(--veta-primary)]" aria-hidden />
+                Abrir vista de indexación
+              </Link>
+            </Button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 shrink-0 px-4 pb-4 pt-2 md:min-h-[4rem]">
+          <Text variant="caption" tone="muted" className="text-center leading-relaxed md:text-left">
+            {singleKbMode ? (
+              <>Los archivos viven en la vista de indexación; el chat usa siempre tu espacio personal.</>
+            ) : (
+              <>
+                El chat usa la base elegida arriba. Los archivos se administran en la{" "}
+                <Link className="font-medium text-[var(--veta-primary)] underline-offset-2 hover:underline" href={kbId ? `/indexar?kb=${encodeURIComponent(kbId)}` : "/indexar"}>
+                  vista de indexación
+                </Link>
+                .
+              </>
+            )}
+          </Text>
+        </div>
         </div>
       </aside>
 
       {/* ── Main chat area ────────────────────────────────────────────────── */}
-      <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      <main className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] bg-zinc-950/30 px-3 py-3 backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-3 sm:px-6 sm:py-3.5">
-          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-            <button
+        <header className="agentic-glass-panel flex shrink-0 flex-col gap-3 border-b border-[var(--veta-border-soft)] px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-3.5 lg:px-8">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+            <Button
               type="button"
-              className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.1] bg-white/[0.05] text-zinc-100 transition-colors hover:bg-white/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50 md:hidden"
+              variant="outline"
+              size="icon"
+              className="agentic-tap-icon shrink-0 rounded-xl border-[var(--veta-border-soft)] md:hidden"
               onClick={() => setMobileSidebarOpen(true)}
-              aria-label="Abrir biblioteca: bases, archivos y conversaciones"
+              aria-label="Abrir biblioteca: conversaciones, base e indexación"
             >
-              <IconMenu />
-            </button>
-            <div className="relative flex size-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/20 to-cyan-500/15 ring-1 ring-emerald-400/25">
-              <span className="absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent to-white/[0.06]" />
-              <span className="relative size-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.65)]" />
-            </div>
-            <div className="min-w-0">
-              <span className="block truncate text-sm font-semibold tracking-tight text-zinc-50">Asistente IA</span>
-              {activeKbName ? (
-                <span className="mt-0.5 block truncate text-[11px] text-zinc-500">Base activa · <span className="text-zinc-400">{activeKbName}</span></span>
-              ) : (
-                <>
-                  <span className="mt-0.5 block text-[11px] text-zinc-600 md:hidden">Toca <span className="font-medium text-zinc-500">Menú</span> para elegir una base.</span>
-                  <span className="mt-0.5 hidden text-[11px] text-zinc-600 md:block">Selecciona una base en la barra lateral.</span>
-                </>
-              )}
+              <Menu className="size-5" aria-hidden />
+            </Button>
+            {desktopSidebarCollapsed && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="agentic-tap-icon hidden shrink-0 rounded-xl border-[var(--veta-border-soft)] md:inline-flex"
+                onClick={() => setDesktopSidebarCollapsed(false)}
+                aria-label="Mostrar biblioteca"
+              >
+                <PanelLeft className="size-5" aria-hidden />
+              </Button>
+            )}
+            <Avatar className="size-9 shrink-0 rounded-xl ring-1 ring-[var(--veta-border-soft)] sm:size-10 sm:rounded-2xl">
+              <AvatarFallback className="rounded-xl bg-[var(--veta-bg-muted)] text-[var(--veta-primary)] sm:rounded-2xl">
+                <Bot className="size-[1.15rem] sm:size-5" aria-hidden />
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <Heading
+                as="h2"
+                size="md"
+                weight="semibold"
+                className="truncate text-base leading-tight tracking-tight text-[var(--veta-fg)] sm:text-lg"
+              >
+                Asistente contextual
+              </Heading>
+              <Text variant="caption" tone="muted" className="mt-0.5 line-clamp-2 text-xs leading-snug sm:truncate sm:line-clamp-none">
+                {singleKbMode && kbId ? (
+                  <>Conocimiento personal · RAG listo para consultar</>
+                ) : activeKbName ? (
+                  <>
+                    RAG activo · <span className="text-[var(--veta-fg-subtle)]">{activeKbName}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="hidden md:inline">Selecciona una base en el panel lateral.</span>
+                    <span className="md:hidden">Menú → elige una base.</span>
+                  </>
+                )}
+              </Text>
             </div>
           </div>
-          <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+          <nav
+            aria-label="Acciones del chat"
+            className="flex w-full min-w-0 shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2"
+          >
             {sources.length > 0 && (
-              <button
+              <Button
                 type="button"
+                variant="soft"
+                size="md"
+                className="agentic-tap w-full min-h-11 shrink-0 rounded-2xl text-sm font-semibold sm:w-auto lg:hidden"
                 onClick={() => setMobileSourcesOpen(true)}
-                className="rounded-xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/15 to-violet-500/10 px-2.5 py-2 text-[11px] font-medium leading-none text-cyan-100 shadow-sm shadow-cyan-900/20 transition-all hover:border-cyan-400/35 hover:from-cyan-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 sm:px-3 sm:text-xs lg:hidden"
               >
                 Fuentes ({sources.length})
-              </button>
+              </Button>
             )}
-            <button
+            <div className="agentic-header-actions w-full min-w-0 sm:w-auto sm:min-w-0">
+            <Button
               type="button"
+              variant="outline"
+              size="md"
+              className={cn(
+                "agentic-tap shrink-0 min-h-11 rounded-2xl px-4 text-sm font-semibold",
+                AGENTIC_CTA_OUTLINE_CLASS,
+              )}
               onClick={startNewConversation}
-              className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-medium text-zinc-300 transition-all hover:border-violet-400/30 hover:bg-violet-500/10 hover:text-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45"
             >
               <span className="sm:hidden">Nueva</span>
               <span className="hidden sm:inline">Nueva charla</span>
-            </button>
-            <Link
-              href="/settings"
-              onClick={() => setMobileSidebarOpen(false)}
-              className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-medium text-zinc-300 transition-all hover:border-white/[0.14] hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45"
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              className={cn(
+                "agentic-tap hidden shrink-0 min-h-11 rounded-2xl px-4 text-sm font-semibold sm:inline-flex",
+                AGENTIC_CTA_OUTLINE_CLASS,
+              )}
+              asChild
             >
-              <span className="sm:hidden">IA</span>
-              <span className="hidden sm:inline">Ajustes IA</span>
-            </Link>
-          </div>
+              <Link
+                href={kbId ? `/indexar?kb=${encodeURIComponent(kbId)}` : "/indexar"}
+                onClick={() => setMobileSidebarOpen(false)}
+                className="inline-flex items-center justify-center gap-2"
+              >
+                <LibraryBig className="size-4 shrink-0 text-[var(--veta-primary)] sm:size-[1.05rem]" aria-hidden />
+                Indexar archivos
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              className={cn("agentic-tap shrink-0 min-h-11 rounded-2xl px-4 text-sm font-semibold sm:hidden", AGENTIC_CTA_OUTLINE_CLASS)}
+              asChild
+            >
+              <Link href={kbId ? `/indexar?kb=${encodeURIComponent(kbId)}` : "/indexar"} onClick={() => setMobileSidebarOpen(false)}>
+                Indexar
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              className={cn(
+                "agentic-tap hidden shrink-0 min-h-11 rounded-2xl px-4 text-sm font-semibold sm:inline-flex",
+                AGENTIC_CTA_OUTLINE_CLASS,
+              )}
+              asChild
+            >
+              <Link href="/settings" onClick={() => setMobileSidebarOpen(false)} className="inline-flex items-center justify-center gap-2">
+                <Settings className="size-4 shrink-0 text-[var(--veta-primary)] sm:size-[1.05rem]" aria-hidden />
+                Ajustes IA
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              className={cn("agentic-tap shrink-0 min-h-11 rounded-2xl px-4 text-sm font-semibold sm:hidden", AGENTIC_CTA_OUTLINE_CLASS)}
+              asChild
+            >
+              <Link href="/settings" onClick={() => setMobileSidebarOpen(false)}>
+                Ajustes
+              </Link>
+            </Button>
+            </div>
+          </nav>
         </header>
 
         {/* Messages */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-6 sm:px-6 sm:py-8">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] py-5 sm:px-5 sm:py-8 lg:px-8">
           {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center px-4 py-10 text-center">
-              <div className="relative w-full max-w-lg">
+            <div className="mx-auto w-full min-w-0 max-w-3xl py-8 sm:py-14">
+              <div className="relative">
                 <div
-                  className="pointer-events-none absolute -inset-8 -z-10 opacity-90 blur-3xl"
+                  className="pointer-events-none absolute -left-6 -top-10 h-44 w-52 rounded-full opacity-90 blur-3xl sm:h-56 sm:w-64"
                   style={{
                     background:
-                      "radial-gradient(ellipse 70% 55% at 50% 40%, rgba(139, 92, 246, 0.22) 0%, transparent 65%), radial-gradient(ellipse 50% 40% at 80% 20%, rgba(34, 211, 238, 0.12) 0%, transparent 55%)",
+                      "radial-gradient(circle, color-mix(in oklch, var(--veta-primary), transparent 72%) 0%, transparent 70%)",
                   }}
+                  aria-hidden
                 />
-                <div className="rounded-3xl border border-white/[0.1] bg-zinc-950/50 p-6 shadow-2xl shadow-violet-950/20 ring-1 ring-white/[0.06] backdrop-blur-2xl sm:p-10">
-                  <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/25 via-fuchsia-500/15 to-cyan-500/20 ring-1 ring-white/10">
-                    <span className="text-violet-200"><IconBot /></span>
+                <div
+                  className="pointer-events-none absolute -bottom-6 right-0 h-40 w-40 rounded-full opacity-80 blur-3xl sm:h-48 sm:w-48"
+                  style={{
+                    background:
+                      "radial-gradient(circle, color-mix(in oklch, var(--veta-accent), transparent 78%) 0%, transparent 72%)",
+                  }}
+                  aria-hidden
+                />
+
+                <VStack gap={6} className="relative min-w-0">
+                  <div className="space-y-4">
+                    <Text variant="overline" tone="muted" weight="semibold" className="tracking-[0.22em]">
+                      Estudio
+                    </Text>
+                    <Heading
+                      as="h2"
+                      size="3xl"
+                      weight="semibold"
+                      className="text-balance text-[var(--veta-fg)] sm:text-4xl"
+                    >
+                      Pregunta con contexto real
+                    </Heading>
+                    <Text variant="lead" tone="muted" className="max-w-2xl text-pretty text-base leading-relaxed sm:text-lg">
+                      Tus PDF y textos alimentan el RAG. Las citas verificables se agrupan en{" "}
+                      <span className="font-medium text-[var(--veta-fg-subtle)]">Fuentes</span> (panel derecho en escritorio, botón en móvil).
+                    </Text>
+                    <HStack gap={3} className="flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap">
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        asChild
+                        className={cn("agentic-tap min-h-[3rem] w-full justify-center px-5 text-base sm:w-auto sm:justify-start", AGENTIC_CTA_OUTLINE_CLASS)}
+                      >
+                        <Link
+                          href={kbId ? `/indexar?kb=${encodeURIComponent(kbId)}` : "/indexar"}
+                          className="inline-flex items-center gap-2.5"
+                        >
+                          <LibraryBig className="size-5 text-[var(--veta-primary)]" aria-hidden />
+                          Indexar archivos
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        asChild
+                        className={cn("agentic-tap min-h-[3rem] w-full justify-center px-5 text-base sm:w-auto sm:justify-start", AGENTIC_CTA_OUTLINE_CLASS)}
+                      >
+                        <Link href="/settings" className="inline-flex items-center gap-2.5">
+                          <Settings className="size-5 text-[var(--veta-primary)]" aria-hidden />
+                          Ajustes de IA
+                        </Link>
+                      </Button>
+                    </HStack>
                   </div>
-                  <h2 className="mb-2 text-lg font-semibold tracking-tight text-zinc-50">¿En qué puedo ayudarte?</h2>
-                  <p className="mb-8 text-sm leading-relaxed text-zinc-500">
-                    Respuestas ancladas a tus documentos. Las citas aparecen en{" "}
-                    <span className="font-medium text-zinc-400">Fuentes</span> cuando hay fragmentos recuperados
-                    (en móvil, el botón queda arriba a la derecha).
-                  </p>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Card variant="elevated" className="agentic-glass-panel rounded-2xl border-[var(--veta-border-soft)] p-5 shadow-lg sm:rounded-3xl sm:p-6">
+                      <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-[var(--veta-primary-subtle)] ring-1 ring-[var(--veta-border-soft)]">
+                        <Sparkles className="size-5 text-[var(--veta-primary)]" aria-hidden />
+                      </div>
+                      <Text variant="overline" tone="muted" weight="semibold" className="mb-2 tracking-[0.18em]">
+                        Paso 1
+                      </Text>
+                      <Heading as="h3" size="md" weight="semibold" className="mb-2 text-[var(--veta-fg)]">
+                        Enriquece tu biblioteca
+                      </Heading>
+                      <Text variant="caption" tone="muted" className="leading-relaxed">
+                        Sube materiales en la vista de indexación. El estado de cada archivo queda claro antes de chatear.
+                      </Text>
+                    </Card>
+                    <Card variant="elevated" className="agentic-glass-panel rounded-2xl border-[var(--veta-border-soft)] p-5 shadow-lg sm:rounded-3xl sm:p-6">
+                      <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-[var(--veta-accent-subtle)] ring-1 ring-[var(--veta-border-soft)]">
+                        <Bot className="size-5 text-[var(--veta-accent)]" aria-hidden />
+                      </div>
+                      <Text variant="overline" tone="muted" weight="semibold" className="mb-2 tracking-[0.18em]">
+                        Paso 2
+                      </Text>
+                      <Heading as="h3" size="md" weight="semibold" className="mb-2 text-[var(--veta-fg)]">
+                        Conversa aquí
+                      </Heading>
+                      <Text variant="caption" tone="muted" className="leading-relaxed">
+                        Escribe abajo: el modelo recupera fragmentos y puedes contrastar con las citas al final de cada respuesta.
+                      </Text>
+                    </Card>
+                  </div>
+
                   {kbId ? (
-                    <div className="space-y-3 text-left">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">Prueba con</p>
+                    <Card variant="elevated" className="agentic-glass-panel rounded-2xl border-[var(--veta-border-soft)] p-5 sm:rounded-3xl sm:p-6">
+                      <Text variant="overline" tone="muted" weight="semibold" className="mb-4 tracking-[0.18em]">
+                        Prueba con una sugerencia
+                      </Text>
                       <div className="flex flex-col gap-2.5">
                         {CHAT_SUGGESTIONS.map((s) => (
-                          <button
+                          <Button
                             key={s}
                             type="button"
+                            variant="outline"
+                            className={cn(
+                              "agentic-tap h-auto min-h-[3rem] justify-start rounded-2xl px-4 py-3 text-left text-sm font-normal leading-snug sm:text-sm",
+                              AGENTIC_CTA_OUTLINE_CLASS,
+                            )}
                             onClick={() => {
                               setInput(s);
                               textareaRef.current?.focus();
                             }}
-                            className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-left text-xs leading-snug text-zinc-400 transition-all hover:border-violet-400/30 hover:bg-gradient-to-r hover:from-violet-500/10 hover:to-cyan-500/5 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40"
                           >
                             {s}
-                          </button>
+                          </Button>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   ) : (
-                    <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-100/90">
-                      <p className="md:hidden">Abre <span className="font-medium">Menú</span> (arriba a la izquierda) y elige una base de conocimiento.</p>
-                      <p className="hidden md:block">Selecciona una base de conocimiento en la barra lateral para empezar.</p>
-                    </div>
+                    <Alert variant="warning" className="rounded-2xl border-[var(--veta-border-soft)]">
+                      <AlertDescription>
+                        <p className="md:hidden">
+                          Abre <span className="font-medium">Menú</span> y confirma la base de conocimiento (o ejecuta el seed si aún no hay bases).
+                        </p>
+                        <p className="hidden md:block">
+                          Selecciona una base en la barra lateral para habilitar sugerencias y enviar mensajes.
+                        </p>
+                      </AlertDescription>
+                    </Alert>
                   )}
-                </div>
+                </VStack>
               </div>
             </div>
           ) : (
-            <ul className="mx-auto max-w-3xl space-y-7">
+            <ul className="agentic-chat-column w-full space-y-6 sm:space-y-8">
               {messages.map((msg, i) => (
-                <li key={msg.id ?? `m-${i}`} className={`flex gap-3.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                  {/* Avatar */}
-                  <div className={`flex size-8 shrink-0 items-center justify-center rounded-xl text-xs ${
-                    msg.role === "user"
-                      ? "bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-900/35 ring-1 ring-white/15"
-                      : "border border-white/[0.1] bg-zinc-900/70 text-violet-300/90 shadow-inner shadow-black/30 backdrop-blur-sm"
-                  }`}>
-                    {msg.role === "user" ? <IconUser /> : <IconBot />}
-                  </div>
+                <li
+                  key={msg.id ?? `m-${i}`}
+                  className={`flex min-w-0 gap-3 sm:gap-3.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                >
+                  <Avatar
+                    className={cn(
+                      "size-9 shrink-0 rounded-xl ring-1 ring-[var(--veta-border-soft)]",
+                      msg.role === "user" ? "bg-[var(--veta-primary)]" : "bg-[var(--veta-bg-muted)]",
+                    )}
+                  >
+                    <AvatarFallback
+                      className={cn(
+                        "rounded-xl text-[0.65rem] font-semibold uppercase",
+                        msg.role === "user"
+                          ? "bg-transparent text-[var(--veta-primary-fg)]"
+                          : "bg-transparent text-[var(--veta-primary)]",
+                      )}
+                    >
+                      {msg.role === "user" ? <User className="size-4" aria-hidden /> : <Bot className="size-4" aria-hidden />}
+                    </AvatarFallback>
+                  </Avatar>
 
                   {/* Bubble */}
-                  <div className={`max-w-[min(90vw,42rem)] rounded-2xl px-3 py-2.5 text-sm leading-relaxed sm:max-w-[80%] sm:px-4 sm:py-3.5 ${
-                    msg.role === "user"
-                      ? "rounded-tr-sm bg-gradient-to-br from-violet-600 via-fuchsia-600 to-violet-700 text-white shadow-xl shadow-violet-950/40 ring-1 ring-white/10"
-                      : msg.content.startsWith("Error del modelo:") || msg.content.startsWith("⚠️") || /^\[\d{3}\]/.test(msg.content)
-                        ? "rounded-tl-sm border border-amber-400/25 bg-gradient-to-b from-amber-500/12 to-amber-950/20 text-amber-100/95 ring-1 ring-amber-400/15"
-                        : "rounded-tl-sm border border-white/[0.08] bg-zinc-900/55 text-zinc-100 shadow-lg shadow-black/20 ring-1 ring-white/[0.04] backdrop-blur-md"
-                  }`}>
+                  <div
+                    className={cn(
+                      "min-w-0 max-w-[min(calc(100dvw-5.5rem),42rem)] break-words rounded-2xl px-3 py-2.5 text-sm leading-relaxed sm:max-w-[80%] sm:px-4 sm:py-3.5",
+                      msg.role === "user" &&
+                        "agentic-msg-user rounded-tr-sm text-[var(--veta-primary-fg)] ring-1 ring-[var(--veta-border-soft)]",
+                      msg.role === "assistant" &&
+                        (msg.content.startsWith("Error del modelo:") || msg.content.startsWith("⚠️") || /^\[\d{3}\]/.test(msg.content))
+                        ? "rounded-tl-sm border border-[var(--veta-warning)] bg-[var(--veta-warning-subtle)] text-[var(--veta-warning-fg)] shadow-md"
+                        : msg.role === "assistant" &&
+                            "agentic-msg-assistant rounded-tl-sm border border-[var(--veta-border-soft)] bg-[var(--veta-bg-muted)] text-[var(--veta-fg)] backdrop-blur-md",
+                    )}
+                  >
                     {msg.role === "assistant" ? (
                       msg.content.startsWith("Error del modelo:") || msg.content.startsWith("⚠️") || /^\[\d{3}\]/.test(msg.content) ? (
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       ) : (
-                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1.5 prose-headings:my-2 prose-code:text-violet-200 prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/10">
+                        <div className="prose prose-invert prose-sm max-w-none break-words prose-p:my-1.5 prose-headings:my-2 prose-pre:max-w-full prose-pre:overflow-x-auto prose-code:text-[var(--veta-primary)] prose-pre:border prose-pre:border-[var(--veta-border)]">
                           <ReactMarkdown>{msg.content}</ReactMarkdown>
                         </div>
                       )
@@ -1003,18 +1017,22 @@ export function ChatApp() {
 
               {/* Thinking indicator */}
               {sending && awaitingFirstToken && (
-                <li className="flex gap-3.5">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.1] bg-zinc-900/70 text-violet-300/80 backdrop-blur-sm">
-                    <IconBot />
-                  </div>
-                  <div className="flex items-center gap-3 rounded-2xl rounded-tl-sm border border-white/[0.08] bg-zinc-900/50 px-4 py-3.5 ring-1 ring-white/[0.04] backdrop-blur-md">
+                <li className="flex min-w-0 gap-3 sm:gap-3.5">
+                  <Avatar className="size-9 shrink-0 rounded-xl ring-1 ring-[var(--veta-border-soft)]">
+                    <AvatarFallback className="rounded-xl bg-[var(--veta-bg-muted)] text-[var(--veta-primary)]">
+                      <Bot className="size-4" aria-hidden />
+                    </AvatarFallback>
+                  </Avatar>
+                  <Card variant="outline" className="agentic-msg-assistant flex items-center gap-3 rounded-2xl rounded-tl-sm border-[var(--veta-border-soft)] px-4 py-3.5">
                     <span className="inline-flex items-end gap-1">
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-400 [animation-delay:-0.3s]" />
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-fuchsia-400/90 [animation-delay:-0.15s]" />
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-400/80" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--veta-primary)] [animation-delay:-0.3s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--veta-accent)] [animation-delay:-0.15s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--veta-info)]" />
                     </span>
-                    <span className="text-xs font-medium text-zinc-500">Generando…</span>
-                  </div>
+                    <Text variant="small" weight="medium" tone="muted">
+                      Generando respuesta…
+                    </Text>
+                  </Card>
                 </li>
               )}
               <div ref={bottomRef} />
@@ -1023,48 +1041,66 @@ export function ChatApp() {
         </div>
 
         {/* Input */}
-        <footer className="shrink-0 border-t border-white/[0.06] bg-gradient-to-t from-zinc-950/80 to-transparent px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md sm:px-6">
-          <div className="mx-auto max-w-3xl">
-            <div className="flex flex-col gap-2 rounded-2xl border border-white/[0.1] bg-zinc-900/60 p-2 shadow-2xl shadow-black/40 ring-1 ring-white/[0.05] backdrop-blur-xl transition-all focus-within:border-violet-400/35 focus-within:shadow-violet-950/25 focus-within:ring-violet-500/20 sm:flex-row sm:items-end sm:gap-2 sm:p-1.5">
-              <textarea
+        <footer
+          className="agentic-glass-panel shrink-0 border-t border-[var(--veta-border-soft)] px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-5 lg:px-8"
+        >
+          <div className="agentic-chat-column w-full">
+            <div className="agentic-composer flex flex-col gap-2 p-2 sm:flex-row sm:items-end sm:gap-3 sm:p-1.5">
+              <Textarea
                 ref={textareaRef}
-                className="min-h-[44px] w-full flex-1 resize-none rounded-xl bg-transparent px-3 py-2.5 text-base text-zinc-100 outline-none placeholder:text-zinc-600 focus-visible:outline-none sm:min-h-[40px] sm:text-sm"
+                appearance="ghost"
+                resize="none"
+                size="sm"
+                className="agentic-chat-input !min-h-[2.75rem] max-h-40 w-full min-w-0 flex-1 border-0 bg-transparent px-3 py-2.5 text-base shadow-none !resize-none focus-visible:ring-0 sm:!min-h-10 sm:text-sm"
                 rows={1}
                 placeholder={kbId ? "Escribe tu pregunta…" : "Elige una base de conocimiento"}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void send();
+                  }
                 }}
                 disabled={!kbId || sending}
                 aria-label="Mensaje para el asistente"
               />
-              <button
+              <Button
                 type="button"
-                className="flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-900/40 ring-1 ring-white/15 transition-all hover:brightness-110 hover:shadow-violet-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:brightness-100 sm:w-auto sm:py-2.5 sm:text-xs"
+                variant="elevated"
+                className="agentic-btn-send min-h-[3rem] w-full min-w-0 gap-2 rounded-2xl px-6 text-base font-semibold tracking-tight sm:min-h-[2.75rem] sm:w-auto sm:px-5 sm:text-sm"
                 onClick={() => void send()}
                 disabled={!kbId || sending || !input.trim()}
                 aria-busy={sending}
                 aria-label="Enviar mensaje"
               >
-                <IconSend />
+                <Send className="size-4" aria-hidden />
                 Enviar
-              </button>
+              </Button>
             </div>
-            <p className="mt-2 text-center text-[10px] font-medium tracking-wide text-zinc-600">Enter envía · Shift+Enter nueva línea</p>
+            <HStack gap={2} justify="center" className="mt-2.5 flex-wrap">
+              <Text variant="caption" tone="muted">
+                <Kbd className="px-1.5">Enter</Kbd> envía
+              </Text>
+              <Text variant="caption" tone="muted">
+                <Kbd className="px-1.5">Shift</Kbd> + <Kbd className="px-1.5">Enter</Kbd> nueva línea
+              </Text>
+            </HStack>
           </div>
         </footer>
       </main>
 
       {/* ── Sources panel ─────────────────────────────────────────────────── */}
-      <section className="hidden w-72 shrink-0 flex-col border-l border-white/[0.06] bg-zinc-950/30 backdrop-blur-2xl lg:flex lg:w-[19.5rem] lg:supports-[backdrop-filter]:bg-zinc-950/20">
-        <div className="border-b border-white/[0.06] px-4 py-4">
+      <section className="agentic-glass-panel agentic-col-rail-right hidden min-h-0 w-[min(20rem,28vw)] min-w-0 max-w-[24rem] shrink-0 flex-col overflow-hidden lg:flex xl:w-[20rem]">
+        <div className="border-b border-[var(--veta-border)] px-4 py-4">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Fuentes</h2>
+            <Text variant="overline" tone="muted" weight="semibold" className="tracking-[0.18em]">
+              Fuentes citadas
+            </Text>
             {sources.length > 0 && (
-              <span className="shrink-0 rounded-full border border-violet-400/20 bg-gradient-to-r from-violet-500/20 to-cyan-500/15 px-2.5 py-0.5 text-[10px] font-semibold tabular-nums text-violet-200 ring-1 ring-white/5">
+              <Badge variant="brand" emphasis="subtle" size="sm">
                 {groupedSources.length} {groupedSources.length === 1 ? "doc" : "docs"}
-              </span>
+              </Badge>
             )}
           </div>
         </div>
@@ -1075,25 +1111,21 @@ export function ChatApp() {
         <div className="fixed inset-0 z-[90] lg:hidden" role="dialog" aria-modal="true" aria-labelledby="mobile-sources-title">
           <button
             type="button"
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-[var(--veta-bg-overlay)] backdrop-blur-md"
             onClick={() => setMobileSourcesOpen(false)}
             aria-label="Cerrar panel de fuentes"
           />
-          <div className="absolute bottom-0 left-0 right-0 flex max-h-[min(88vh,560px)] flex-col overflow-hidden rounded-t-3xl border border-white/[0.1] bg-zinc-950/95 pb-[env(safe-area-inset-bottom)] shadow-2xl shadow-violet-950/30 ring-1 ring-white/[0.06] backdrop-blur-2xl">
+          <div className="absolute bottom-0 left-0 right-0 flex max-h-[min(88dvh,560px)] flex-col overflow-hidden rounded-t-3xl border border-[var(--veta-border)] bg-[var(--veta-bg)] pb-[env(safe-area-inset-bottom)] shadow-2xl backdrop-blur-2xl">
             <div className="flex justify-center pt-2">
-              <span className="h-1 w-10 rounded-full bg-zinc-700" aria-hidden />
+              <span className="h-1 w-10 rounded-full bg-[var(--veta-border-strong)]" aria-hidden />
             </div>
-            <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3.5">
-              <h2 id="mobile-sources-title" className="text-sm font-semibold tracking-tight text-zinc-100">
-                Fuentes
-              </h2>
-              <button
-                type="button"
-                onClick={() => setMobileSourcesOpen(false)}
-                className="rounded-xl border border-white/[0.1] bg-white/[0.06] px-3.5 py-2 text-xs font-medium text-zinc-300 transition-all hover:bg-white/[0.1] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50"
-              >
+            <div className="flex items-center justify-between border-b border-[var(--veta-border)] px-4 py-3.5">
+              <Heading as="h2" id="mobile-sources-title" size="md" weight="semibold" className="text-[var(--veta-fg)]">
+                Fuentes citadas
+              </Heading>
+              <Button type="button" variant="outline" size="sm" className="agentic-tap shrink-0 rounded-2xl text-sm" onClick={() => setMobileSourcesOpen(false)}>
                 Cerrar
-              </button>
+              </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3.5">{sourcesPanelInner}</div>
           </div>

@@ -19,9 +19,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RAG Knowledge Base",
+  title: "Agentic RAG Studio · Conocimiento privado",
   description:
-    "Asistente privado que responde anclado a tus documentos (RAG + PostgreSQL + pgvector).",
+    "Asistente contextual que responde anclado a tus documentos (RAG + PostgreSQL + pgvector).",
 };
 
 export default function RootLayout({
@@ -32,9 +32,13 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      data-theme="dark"
+      data-app="agentic"
+      className={`${geistSans.variable} ${geistMono.variable} h-full min-h-dvh antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-dvh min-h-0 flex-col overflow-x-hidden text-[var(--veta-fg)] antialiased">
+        {children}
+      </body>
     </html>
   );
 }

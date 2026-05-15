@@ -14,7 +14,13 @@
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@vetaui/atoms": "^0.1.0",
+    "@vetaui/foundations": "^0.1.0",
+    "@vetaui/molecules": "^0.1.0",
+    "@vetaui/organisms": "^0.1.0",
+    "@vetaui/templates": "^0.1.0",
     "drizzle-orm": "^0.45.2",
+    "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "pg": "^8.20.0",
     "react": "19.2.4",

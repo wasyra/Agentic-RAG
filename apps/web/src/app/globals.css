@@ -1,73 +1,21 @@
 @import "tailwindcss";
-
-:root {
-  --background: #050508;
-  --background-elevated: #0a0a0f;
-  --foreground: #ececf1;
-  --foreground-muted: #8e8ea0;
-  --accent: #a78bfa;
-  --accent-bright: #c4b5fd;
-  --accent-glow: rgba(167, 139, 250, 0.12);
-  --accent-cyan: #22d3ee;
-  --surface-border: rgba(255, 255, 255, 0.06);
-  --surface-glass: rgba(12, 12, 18, 0.72);
-}
+@import "@vetaui/foundations/css";
+@import "@vetaui/foundations/reset";
+@import "../styles/agentic-premium.css";
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background-color: var(--background);
-  background-image:
-    radial-gradient(ellipse 120% 80% at 50% -30%, rgba(99, 102, 241, 0.18), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(34, 211, 238, 0.06), transparent 45%),
-    radial-gradient(ellipse 60% 40% at 0% 100%, rgba(167, 139, 250, 0.08), transparent 50%);
-  background-attachment: fixed;
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-geist-sans), var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 ::selection {
-  background: rgba(167, 139, 250, 0.35);
-  color: #fafafa;
-}
-
-/* Premium label / wordmark */
-.text-gradient-brand {
-  background: linear-gradient(135deg, #f4f4f5 0%, #c4b5fd 45%, #67e8f9 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/* ── Custom scrollbars ───────────────────────────────────────────────────── */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(139, 92, 246, 0.25) transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(167, 139, 250, 0.35), rgba(34, 211, 238, 0.2));
-  border-radius: 99px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(196, 181, 253, 0.5), rgba(34, 211, 238, 0.35));
+  background: color-mix(in oklch, var(--veta-primary), transparent 65%);
 }
 
 /* ── Prose overrides (assistant markdown) ───────────────────────────────── */
@@ -88,26 +36,39 @@ body {
   margin-block: 0.85rem 0.4rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-  color: #f4f4f5;
+  color: var(--veta-fg);
 }
 .prose-invert code:not(pre code) {
   font-size: 0.8em;
-  background: rgba(167, 139, 250, 0.1);
-  border: 1px solid rgba(167, 139, 250, 0.22);
+  background: color-mix(in oklch, var(--veta-primary), transparent 85%);
+  border: 1px solid color-mix(in oklch, var(--veta-primary), transparent 70%);
   border-radius: 6px;
   padding: 0.12em 0.4em;
-  color: #c4b5fd;
+  color: var(--veta-primary);
 }
 .prose-invert pre {
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.45) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: color-mix(in oklch, var(--veta-bg-muted), transparent 35%) !important;
+  border: 1px solid var(--veta-border);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--veta-fg), transparent 94%);
 }
 
-/* ── Textarea auto-grow ──────────────────────────────────────────────────── */
-textarea {
-  field-sizing: content;
+.prose-invert blockquote {
+  border-left: 3px solid color-mix(in oklch, var(--veta-primary), transparent 35%);
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: var(--veta-fg-muted);
+  font-style: normal;
+}
+
+.prose-invert a {
+  color: var(--veta-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.prose-invert strong {
+  color: color-mix(in oklch, var(--veta-fg), var(--veta-primary) 12%);
 }
 
 /* ── Line-clamp util ─────────────────────────────────────────────────────── */

@@ -51,23 +51,23 @@ Push-Location $pwCwd
 try {
   & npx @("--yes", "playwright@1.56.0", "screenshot", "-b", "chromium",
     "--viewport-size", "1480,900",
-    "--wait-for-timeout", "8000",
-    "--wait-for-selector", "text=RAG Studio",
+    "--wait-for-timeout", "12000",
+    "--wait-for-selector", "[data-readme-ready]",
     "$BaseUrl/",
     (Join-Path $outDir "vista-chat-escritorio.png"))
 
   # Evitar caracteres acentuados en la línea de comandos (encoding en consolas Windows).
   & npx @("--yes", "playwright@1.56.0", "screenshot", "-b", "chromium",
     "--viewport-size", "1480,900",
-    "--wait-for-timeout", "8000",
-    "--wait-for-selector", "text=Volver al chat",
+    "--wait-for-timeout", "12000",
+    "--wait-for-selector", "[data-readme-ready]",
     "$BaseUrl/settings",
     (Join-Path $outDir "vista-configuracion-ia.png"))
 
   & npx @("--yes", "playwright@1.56.0", "screenshot", "-b", "chromium",
     "--viewport-size", "390,844",
-    "--wait-for-timeout", "8000",
-    "--wait-for-selector", "text=Asistente IA",
+    "--wait-for-timeout", "12000",
+    "--wait-for-selector", "[data-readme-ready]",
     "$BaseUrl/",
     (Join-Path $outDir "vista-chat-movil.png"))
 }

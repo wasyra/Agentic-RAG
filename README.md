@@ -4,27 +4,29 @@ Monorepo según [PLAN.md](./PLAN.md): **Next.js** (solo UI) + **FastAPI** (backe
 
 ## Interfaz (capturas)
 
-Vistas principales de la web (`apps/web`): chat con biblioteca en la barra lateral, variante en pantalla estrecha y pantalla de ajustes de IA.
+La web (`apps/web`) usa **[Vetaui](https://www.npmjs.com/org/vetaui)** —paquetes npm `@vetaui/foundations`, `@vetaui/atoms`, `@vetaui/molecules`, `@vetaui/organisms` y `@vetaui/templates`— encima del sistema de diseño **Veta** (tokens semánticos OKLCH, presets de marca y componentes accesibles). La capa visual del producto ajusta radios, fondos y acentos en `apps/web/src/styles/agentic-premium.css`.
+
+Vistas principales: chat con biblioteca lateral, variante en pantalla estrecha y pantalla de ajustes de IA.
 
 ### Escritorio: chat y biblioteca
 
-Conversaciones, selector de base de conocimiento, subida de archivos (PDF / TXT / MD) y listado con estado de indexación; a la derecha, el área del asistente.
+Tres columnas (biblioteca · transcripción · fuentes citadas en `lg+`): conversaciones, base de conocimiento, acceso a indexación; panel central del asistente con compositor tipo consola.
 
-![Vista escritorio: chat y biblioteca lateral](docs/screenshots/vista-chat-escritorio.png)
+![Escritorio: Agentic RAG Studio con Vetaui — biblioteca, chat y panel de fuentes](docs/screenshots/vista-chat-escritorio.png)
 
 ### Móvil: área de chat
 
-En viewport reducido, la biblioteca se abre con el menú (icono arriba a la izquierda). La captura muestra el estado inicial con sugerencias de preguntas.
+En viewport reducido la biblioteca es un cajón (menú arriba a la izquierda); las citas se abren con **Fuentes**. Captura del estado inicial con sugerencias.
 
-![Vista móvil: chat principal](docs/screenshots/vista-chat-movil.png)
+![Móvil: chat principal y cabecera compacta (Vetaui)](docs/screenshots/vista-chat-movil.png)
 
 ### Configuración de IA (`/settings`)
 
-Proveedor (OpenAI o Google), modelo y credenciales; enlazado desde el botón **Ajustes IA** en la cabecera del chat.
+Proveedor (OpenAI o Google), modelo y credenciales; mismo marco de página que indexación (`AgenticAppPageShell`). Enlace desde **Ajustes IA** en la cabecera del chat.
 
-![Vista configuración de IA](docs/screenshots/vista-configuracion-ia.png)
+![Ajustes de IA: formularios Vetaui sobre fondo con malla suave](docs/screenshots/vista-configuracion-ia.png)
 
-Las capturas del repo se toman contra la **web del contenedor Docker** (imagen de producción), no contra `npm run dev`. Con el stack en marcha, desde la raíz del repo:
+Las capturas del repo se generan con Playwright (`scripts/capture-readme-screenshots.ps1`) esperando el atributo `data-readme-ready` en el HTML servido. Deben tomarse contra la **web del contenedor Docker** (imagen de producción), no contra `npm run dev`. Con el stack en marcha, desde la raíz del repo:
 
 ```powershell
 .\scripts\capture-readme-screenshots.ps1
@@ -167,6 +169,7 @@ Abre [http://localhost:3000](http://localhost:3000). Salud del API: [http://127.
 - **FastAPI** (`apps/api`): indexación (PDF / TXT / MD), embeddings, chat RAG, listados, ajustes persistidos en `storage/app-settings.json`.
 - **Chat** (`POST /api/chat` en el API): embedding de la pregunta → búsqueda → respuesta según proveedor en ajustes.
 - **Ajustes**: claves en localStorage; modelos en `storage/app-settings.json` (compartido con el volumen Docker `rag_web_storage`).
+- **Next.js (UI)**: interfaz con **Vetaui** (`@vetaui/*`) y capa de producto en `apps/web/src/styles/agentic-premium.css`.
 
 ## Estructura
 

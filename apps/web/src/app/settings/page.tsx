@@ -11,7 +11,8 @@ export default function SettingsPage() {
     <AgenticAppPageShell>
       <AgenticStudioBackLink />
 
-      <VStack gap={8}>
+      <div data-readme-ready className="min-w-0">
+        <VStack gap={8}>
         <Card variant="ghost" className="border-0 bg-transparent p-0 shadow-none">
           <CardHeader className="p-0">
             <Text variant="overline" tone="muted" weight="semibold" className="mb-2 tracking-[0.2em]">
@@ -37,7 +38,8 @@ export default function SettingsPage() {
             <SettingsForm />
           </CardContent>
         </Card>
-      </VStack>
+        </VStack>
+      </div>
     </AgenticAppPageShell>
   );
 }

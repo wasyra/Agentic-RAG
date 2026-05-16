@@ -663,7 +663,7 @@ export function ChatApp() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 shrink-0 px-4 pb-4 pt-2 md:min-h-[4rem]">
+        <div className="min-h-0 flex-1 px-4 pb-2 pt-2 md:min-h-0">
           <Text variant="caption" tone="muted" className="text-center leading-relaxed md:text-left">
             {singleKbMode ? (
               <>Los archivos viven en la vista de indexación; el chat usa siempre tu espacio personal.</>
@@ -678,13 +678,28 @@ export function ChatApp() {
             )}
           </Text>
         </div>
+
+        <div className="shrink-0 border-t border-[var(--veta-border-soft)] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+          <Text variant="caption" tone="muted" className="text-center text-[10px] leading-relaxed text-[var(--veta-fg-subtle)] md:text-left">
+            Interfaz con{" "}
+            <a
+              href="https://www.npmjs.com/org/vetaui"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--veta-primary)] underline-offset-2 hover:underline"
+            >
+              Vetaui
+            </a>
+            {" "}(Veta) · tokens y componentes accesibles.
+          </Text>
+        </div>
         </div>
       </aside>
 
       {/* ── Main chat area ────────────────────────────────────────────────── */}
       <main className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <header className="agentic-glass-panel flex shrink-0 flex-col gap-3 border-b border-[var(--veta-border-soft)] px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-3.5 lg:px-8">
+        <header className="agentic-glass-panel agentic-chat-header flex shrink-0 flex-col gap-3 border-b border-[var(--veta-border-soft)] px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-3.5 lg:px-8">
           <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
             <Button
               type="button"

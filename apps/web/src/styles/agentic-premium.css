@@ -47,7 +47,7 @@ html[data-app="agentic"][data-theme="dark"] {
 
   --veta-surface-overlay: color-mix(in oklch, var(--veta-bg-subtle) 68%, transparent);
   --veta-surface-elevated: color-mix(in oklch, var(--veta-bg-muted) 82%, white 5%);
-  --veta-border-soft: color-mix(in oklch, var(--veta-border) 38%, transparent);
+  --veta-border-soft: color-mix(in oklch, var(--veta-border) 44%, transparent);
 
   --veta-focus-shadow: 0 0 0 3px color-mix(in oklch, var(--veta-primary) 26%, transparent);
 
@@ -253,6 +253,16 @@ html[data-app="agentic"] .agentic-col-rail-right {
   .agentic-aurora__blob {
     animation: none;
   }
+}
+
+/* Chat shell header: slightly stronger glass + hairline for separation from transcript */
+html[data-app="agentic"] .agentic-chat-header {
+  background: color-mix(in oklch, var(--veta-bg-subtle) 58%, transparent);
+  backdrop-filter: blur(24px) saturate(1.55);
+  -webkit-backdrop-filter: blur(24px) saturate(1.55);
+  box-shadow:
+    inset 0 -1px 0 color-mix(in oklch, var(--veta-fg) 5%, transparent),
+    inset 0 1px 0 color-mix(in oklch, var(--veta-fg) 6%, transparent);
 }
 
 /* Glass rail (sidebar / panels) */
